@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taglog</title>
+<link rel="stylesheet" href="app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230a66d6'/%3E%3Cpath d='M16 8v8l6 4' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app">
+  <nav class="side" aria-label="Sections">
+    <div class="brand">Taglog<small>time log &amp; work diary</small></div>
+    <button data-view="today" class="active">Today</button>
+    <button data-view="log">Log &amp; search</button>
+    <button data-view="actions">Actions</button>
+    <button data-view="projects">Projects</button>
+    <button data-view="reports">Reports</button>
+    <button data-view="settings">Settings</button>
+    <div class="clock"><div id="side-date"></div><div id="side-ver"></div></div>
+  </nav>
+
+  <main>
+    <!-- ================= TODAY ================= -->
+    <section class="view active" id="view-today">
+      <div id="banners"></div>
+      <div class="grid2">
+        <div>
+          <div class="card current">
+            <div class="top">
+              <div>
+                <div class="since" id="cur-since">Started</div>
+                <div class="timer" id="cur-timer">0:00:00</div>
+              </div>
+              <div class="spacer"></div>
+              <span class="pill grey hidden" id="cur-stack" title="Interruption / push stack depth"></span>
+              <span class="saved" id="cur-saved"></span>
+            </div>
+            <div class="fields">
+              <label class="f"><span>Start</span>
+                <div class="row" style="gap:6px;flex-wrap:nowrap">
+                  <input id="cur-start" class="mono" style="width:100%" title="Start time of this entry">
+                  <button class="b" id="btn-adjust" title="Move the start time back (optionally also the previous entry's end)">Adjust…</button>
+                </div>
+              </label>
+              <label class="f"><span>Project</span><input id="cur-project" list="dl-projects" autocomplete="off"></label>
+              <label class="f"><span>Activity</span><input id="cur-activity" list="dl-activities" autocomplete="off"></label>
+              <label class="f"><span>Action</span>
+                <select id="cur-action"><option value="">—</option></select>
+              </label>
+              <label class="f"><span>Contact</span><input id="cur-contact" list="dl-contacts" autocomplete="off"></label>
+              <label class="f"><span>Rate</span>
+                <select id="cur-rate"><option value="">—</option><option>Overtime</option></select>
+              </label>
+              <label class="f wide"><span>Description</span>
+                <textarea id="cur-desc" placeholder="What are you doing? (saved automatically)"></textarea>
+              </label>
+            </div>
+            <div class="row" style="margin-top:12px">
+              <div class="btn-group">
+                <button class="b primary big" id="btn-next" title="Finish this entry and start a new one (Ctrl/⌘+Enter)">Next</button>
+                <button class="b primary big" id="btn-next-menu" title="Next, with an activity" aria-label="Next with activity">▾</button>
+              </div>
+              <button class="b" id="btn-pause">Pause</button>
+              <span class="spacer"></span>
+              <button class="b" id="btn-interrupt" title="Interrupted: log what you were doing and start the interruption (!)">Interrupt !</button>
+              <button class="b" id="btn-push" title="Push: put the current task on the stack and start a sub-task (+)">Push +</button>
+              <button class="b" id="btn-pop" title="Pop: finish this and go back to the task on the stack (−)">Pop −</button>
+            </div>
+            <div class="row" style="margin-top:10px" id="action-buttons">
+              <span class="muted small">Current action:</span>
+              <button class="b" id="btn-complete" title="Finish the entry and mark the current action Completed">Complete action</button>
+              <button class="b danger" id="btn-abort" title="Finish the entry and mark the current action Aborted">Abort action</button>
+              <span class="spacer"></span>
+              <span class="muted small"><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> = Next</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="row"><h2>Today's log</h2><span class="spacer"></span>
+              <button class="b" id="btn-day-summary">Day summary…</button></div>
+            <div id="today-summary"></div>
+            <div class="entries" id="today-entries"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="row"><h2>Project times today</h2></div>
+            <p class="muted small" style="margin-top:0">Click a project to start a new entry on it.</p>
+            <table class="t" id="proj-times"></table>
+          </div>
+          <div class="card" id="today-actions-card">
+            <h2>Today's actions</h2>
+            <p class="muted small" style="margin-top:0">A short note of what you plan to get done today (saved in today's log).</p>
+            <div id="today-actions" class="fields" style="grid-template-columns:1fr"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= LOG ================= -->
+    <section class="view" id="view-log">
+      <div class="subtabs" id="log-tabs">
+        <button data-sub="day" class="active">Day</button>
+        <button data-sub="search">Search</button>
+        <button data-sub="summaries">Month / year summaries</button>
+      </div>
+      <div class="sub" data-sub="day">
+        <div class="card">
+          <div class="row">
+            <button class="b" id="log-prev" aria-label="Previous day">←</button>
+            <input type="date" id="log-date">
+            <button class="b" id="log-next" aria-label="Next day">→</button>
+            <button class="b" id="log-today">Today</button>
+            <span class="spacer"></span>
+            <span class="muted" id="log-total"></span>
+            <button class="b" id="log-summary-btn">Day summary…</button>
+          </div>
+        </div>
+        <div id="log-day"></div>
+      </div>
+      <div class="sub hidden" data-sub="search">
+        <div class="card">
+          <div class="fields">
+            <label class="f"><span>From</span><input type="date" id="s-from"></label>
+            <label class="f"><span>To</span><input type="date" id="s-to"></label>
+            <label class="f"><span>Project</span><input id="s-project" list="dl-allprojects"></label>
+            <label class="f"><span>Activity</span><input id="s-activity" list="dl-activities"></label>
+            <label class="f"><span>Contact</span><input id="s-contact" list="dl-contacts"></label>
+            <label class="f"><span>Description contains</span><input id="s-text"></label>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <label class="check"><input type="checkbox" id="s-summ"> Show day summaries only</label>
+            <span class="spacer"></span>
+            <button class="b" id="s-copy">Copy as text</button>
+            <button class="b primary" id="s-go">Search</button>
+          </div>
+        </div>
+        <div id="s-results"></div>
+      </div>
+      <div class="sub hidden" data-sub="summaries">
+        <div class="card">
+          <div class="row">
+            <label class="f"><span>Year</span><input type="number" id="ms-year" style="width:100px"></label>
+            <label class="f"><span>Month</span>
+              <select id="ms-month"><option value="">(whole year)</option></select></label>
+            <span class="spacer"></span>
+            <button class="b" id="ms-load">Load</button>
+          </div>
+          <textarea id="ms-text" rows="14" style="margin-top:12px" placeholder="Summary text"></textarea>
+          <div class="row end" style="margin-top:10px"><button class="b primary" id="ms-save">Save summary</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIONS ================= -->
+    <section class="view" id="view-actions">
+      <div class="card">
+        <div class="row" style="margin-bottom:10px">
+          <h2 style="margin:0">Actions</h2><span class="spacer"></span>
+          <button class="b primary" id="a-new">New action…</button>
+        </div>
+        <div class="row" id="a-states"></div>
+        <div class="fields" style="margin-top:10px">
+          <label class="f"><span>Project</span><input id="a-project" list="dl-allprojects"></label>
+          <label class="f"><span>Priority ≤</span><input id="a-maxpri" type="number" min="0" max="100"></label>
+          <label class="f"><span>Text</span><input id="a-text" placeholder="Title, Id or description"></label>
+          <label class="f"><span>Sort</span><select id="a-sort"><option value="priority">Priority</option><option value="">File order</option></select></label>
+        </div>
+      </div>
+      <div class="row muted small" id="a-stats" style="margin-bottom:8px"></div>
+      <div class="actions-list" id="a-list"></div>
+    </section>
+
+    <!-- ================= PROJECTS ================= -->
+    <section class="view" id="view-projects">
+      <div class="card">
+        <div class="row" style="margin-bottom:8px">
+          <h2 style="margin:0">Projects</h2><span class="spacer"></span>
+          <label class="check"><input type="checkbox" id="p-showclosed"> Show closed</label>
+          <button class="b primary" id="p-new">Add project…</button>
+        </div>
+        <div class="scroll-x"><table class="t" id="p-table"></table></div>
+        <p class="muted small">Flags: <b>Breaks</b> time is not counted as work. <b>Overheads</b> time can be spread over other projects in the weekly bookings report. <b>Active</b> projects are listed first and appear in “Project times today”. <b>Immutable</b> projects do not receive spread overheads. A project is <b>closed</b> once its end date is reached.</p>
+      </div>
+    </section>
+
+    <!-- ================= REPORTS ================= -->
+    <section class="view" id="view-reports">
+      <div class="subtabs" id="rep-tabs">
+        <button data-sub="timebook" class="active">Weekly bookings</button>
+        <button data-sub="activity">Time by activity</button>
+        <button data-sub="ptotal">Project total</button>
+        <button data-sub="progress">Project progress</button>
+        <button data-sub="review">Active actions review</button>
+        <button data-sub="interrupts">Interruptions</button>
+      </div>
+      <div class="sub" data-sub="timebook">
+        <div class="card">
+          <div class="fields">
+            <label class="f"><span>Week starting (Monday)</span><input type="date" id="tb-start"></label>
+            <label class="f"><span>Weeks</span><input type="number" id="tb-weeks" min="1" max="53" value="1"></label>
+            <label class="f"><span>Spread overheads</span><select id="tb-spread"><option value="off">Off</option><option value="byweek">By week</option><option value="byday">By day</option></select></label>
+            <label class="f"><span>Label projects by</span><select id="tb-bookby"><option value="code">Booking code</option><option value="name">Name</option><option value="both">Code (Name)</option></select></label>
+            <label class="f"><span>Show times as</span><select id="tb-format"><option value="hhmm">hh:mm</option><option value="hours">Decimal hours</option><option value="days">Decimal days</option></select></label>
+          </div>
+          <div class="row end" style="margin-top:12px">
+            <button class="b" id="tb-prev">← Previous week</button>
+            <button class="b" id="tb-nextw">Next week →</button>
+            <button class="b" id="tb-csv">Download CSV</button>
+            <button class="b primary" id="tb-go">Show</button>
+          </div>
+        </div>
+        <div id="tb-out"></div>
+      </div>
+      <div class="sub hidden" data-sub="activity">
+        <div class="card"><div class="fields">
+          <label class="f"><span>From</span><input type="date" id="ta-from"></label>
+          <label class="f"><span>To</span><input type="date" id="ta-to"></label>
+          <label class="f"><span>Project (optional)</span><input id="ta-project" list="dl-allprojects"></label>
+        </div><div class="row end" style="margin-top:12px"><button class="b primary" id="ta-go">Show</button></div></div>
+        <div id="ta-out"></div>
+      </div>
+      <div class="sub hidden" data-sub="ptotal">
+        <div class="card"><div class="fields">
+          <label class="f"><span>Project</span><input id="pt-project" list="dl-allprojects"></label>
+          <label class="f"><span>From (default: project start)</span><input type="date" id="pt-from"></label>
+          <label class="f"><span>To (default: project end)</span><input type="date" id="pt-to"></label>
+        </div><div class="row end" style="margin-top:12px"><button class="b primary" id="pt-go">Show</button></div></div>
+        <div id="pt-out"></div>
+      </div>
+      <div class="sub hidden" data-sub="progress">
+        <div class="card"><div class="fields">
+          <label class="f"><span>Project (blank = all)</span><input id="pp-project" list="dl-allprojects"></label>
+          <label class="f"><span>From</span><input type="date" id="pp-from"></label>
+          <label class="f"><span>To</span><input type="date" id="pp-to"></label>
+        </div><div class="row end" style="margin-top:12px"><button class="b" id="pp-copy">Copy as text</button><button class="b primary" id="pp-go">Show</button></div></div>
+        <div id="pp-out"></div>
+      </div>
+      <div class="sub hidden" data-sub="review">
+        <div class="card">
+          <p class="muted" style="margin-top:0">Time logged against each active action compared with its expected time and date. Changing an expected value records the original value and a Revised-date on the action.</p>
+          <div class="row end"><button class="b" id="rv-go">Refresh</button></div>
+        </div>
+        <div id="rv-out"></div>
+      </div>
+      <div class="sub hidden" data-sub="interrupts">
+        <div class="card"><div class="fields">
+          <label class="f"><span>From</span><input type="date" id="ir-from"></label>
+          <label class="f"><span>To</span><input type="date" id="ir-to"></label>
+        </div><div class="row end" style="margin-top:12px"><button class="b primary" id="ir-go">Show</button></div></div>
+        <div id="ir-out"></div>
+      </div>
+    </section>
+
+    <!-- ================= SETTINGS ================= -->
+    <section class="view" id="view-settings">
+      <div class="card">
+        <h2>Settings</h2>
+        <p class="muted small" id="set-file"></p>
+        <div id="set-warnings"></div>
+        <div class="fields">
+          <label class="f wide"><span>Data directory</span><input id="set-rootdir" class="mono"></label>
+          <label class="f wide"><span>Activities file (blank = &lt;data directory&gt;/activities)</span><input id="set-actfile" class="mono"></label>
+          <label class="f"><span>Date format</span><select id="set-datefmt"><option>YYYY-MM-DD</option><option>DD/MM/YYYY</option><option>MM/DD/YYYY</option></select></label>
+          <label class="f"><span>Time format</span><select id="set-timefmt"><option value="%d:%02d:%02d">H:MM:SS</option><option value="%d:%02d">H:MM</option></select></label>
+          <label class="f"><span>Hours worked per day</span><input id="set-hpd" type="number" step="0.01" min="0.5" max="23.5"></label>
+          <label class="f"><span>Spread overheads</span><select id="set-spread"><option value="off">Off</option><option value="byweek">By week</option><option value="byday">By day</option></select></label>
+          <label class="f"><span>Weekly bookings start</span><select id="set-lastweek"><option value="1">Last week</option><option value="0">This week</option></select></label>
+          <label class="f"><span>Number of “today” actions</span><input id="set-nta" type="number" min="0" max="20"></label>
+          <label class="f wide"><span>Activities (one per line)</span><textarea id="set-activities" rows="10" class="mono"></textarea></label>
+        </div>
+        <div class="row end" style="margin-top:12px"><button class="b primary" id="set-save">Save settings</button></div>
+      </div>
+      <div class="card">
+        <h2>Files</h2>
+        <table class="t" id="set-files"></table>
+        <p class="muted small">These are the same files the original Tcl/Tk taglog uses. Do not run both programs at the same time: each would overwrite the other's changes.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<datalist id="dl-projects"></datalist>
+<datalist id="dl-allprojects"></datalist>
+<datalist id="dl-activities"></datalist>
+<datalist id="dl-contacts"></datalist>
+
+<dialog id="dlg"><form method="dialog" id="dlg-form">
+  <div class="dh"><h2 id="dlg-title"></h2><button class="b" type="button" id="dlg-close" aria-label="Close">✕</button></div>
+  <div class="db" id="dlg-body"></div>
+  <div class="df" id="dlg-foot"></div>
+</form></dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
