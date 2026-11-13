@@ -78,7 +78,14 @@ function fmtDur(secs, mode) {
   const mins = Math.round(secs / 60);
   return `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
 }
-function fmtHM(secs) { return fmtDur(secs, "hhmm"); }
+/** Elapsed time in the same style as start/end times: H:MM:SS, or H:MM when
+ *  the "Time format" setting is H:MM (seconds are then dropped, as taglog does). */
+function fmtHM(secs) {
+  secs = Math.max(0, Math.round(secs || 0));
+  const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+  if (state.prefs && state.prefs.currentTimeFormat === "%d:%02d") return `${h}:${pad(m)}`;
+  return `${h}:${pad(m)}:${pad(s)}`;
+}
 function fmtDate(iso) {
   if (!iso) return "";
   const f = (state.prefs && state.prefs.dateformat_view) || "YYYY-MM-DD";
