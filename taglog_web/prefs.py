@@ -51,7 +51,7 @@ DEFAULTS: Dict[str, object] = {
 EDITABLE = [
     "rootdir", "activitiesfilename", "dateformat_view", "currentTimeFormat",
     "showtime_hours_per_day", "showtime_spreadoverheads",
-    "timebook_startlastweek", "num_today_actions",
+    "timebook_startlastweek", "num_today_actions", "language",
 ]
 
 
@@ -365,6 +365,11 @@ class Prefs:
             return 3
 
     @property
+    def language(self) -> str:
+        v = str(self.values.get("language") or "en").strip().lower()
+        return v if re.fullmatch(r"[a-z]{2}", v) else "en"
+
+    @property
     def spread_overheads(self) -> str:
         v = str(self.values.get("showtime_spreadoverheads") or "byweek")
         if v == "0":
@@ -401,6 +406,7 @@ class Prefs:
             "showtime_spreadoverheads": self.spread_overheads,
             "timebook_startlastweek": "1" if self.start_last_week else "0",
             "num_today_actions": str(self.num_today_actions),
+            "language": self.language,
             "book_by": self.book_by,
             "duration_format": self.duration_format,
             "activities": self.activities,
@@ -426,6 +432,8 @@ class Prefs:
             hpd = float(changes["showtime_hours_per_day"])
             if not 0 < hpd < 24:
                 raise ValueError("Hours per day must be between 0 and 24")
+        if "language" in changes and not re.fullmatch(r"[a-z]{2}", changes["language"]):
+            raise ValueError("Language must be a two-letter code such as en or de")
         if "num_today_actions" in changes:
             nta = int(changes["num_today_actions"])
             if not 0 <= nta <= 20:

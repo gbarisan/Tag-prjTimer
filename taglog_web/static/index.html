@@ -17,6 +17,7 @@
     <button data-view="projects">Projects</button>
     <button data-view="reports">Reports</button>
     <button data-view="settings">Settings</button>
+    <button data-view="help">Help</button>
     <div class="clock"><div id="side-date"></div><div id="side-ver"></div></div>
   </nav>
 
@@ -35,9 +36,10 @@
               <div class="spacer"></div>
               <span class="pill grey hidden" id="cur-stack" title="Interruption / push stack depth"></span>
               <span class="saved" id="cur-saved"></span>
+              <button type="button" class="help-q" data-help="introduction" aria-label="Help">?</button>
             </div>
             <div class="fields">
-              <label class="f"><span>Start</span>
+              <label class="f"><span>Start <button type="button" class="help-q" data-help="adjstart" aria-label="Help">?</button></span>
                 <div class="row" style="gap:6px;flex-wrap:nowrap">
                   <input id="cur-start" class="mono" style="width:100%" title="Start time of this entry">
                   <button class="b" id="btn-adjust" title="Move the start time back (optionally also the previous entry's end)">Adjust…</button>
@@ -49,10 +51,10 @@
                 <select id="cur-action"><option value="">—</option></select>
               </label>
               <label class="f"><span>Contact</span><input id="cur-contact" list="dl-contacts" autocomplete="off"></label>
-              <label class="f"><span>Rate</span>
+              <label class="f"><span>Rate <button type="button" class="help-q" data-help="logedit_rate" aria-label="Help">?</button></span>
                 <select id="cur-rate"><option value="">—</option><option>Overtime</option></select>
               </label>
-              <label class="f wide"><span>Description</span>
+              <label class="f wide"><span>Description <button type="button" class="help-q" data-help="logedit_description" aria-label="Help">?</button></span>
                 <textarea id="cur-desc" placeholder="What are you doing? (saved automatically)"></textarea>
               </label>
             </div>
@@ -63,12 +65,13 @@
               </div>
               <button class="b" id="btn-pause">Pause</button>
               <span class="spacer"></span>
+              <button type="button" class="help-q" data-help="stack" aria-label="Help">?</button>
               <button class="b" id="btn-interrupt" title="Interrupted: log what you were doing and start the interruption (!)">Interrupt !</button>
               <button class="b" id="btn-push" title="Push: put the current task on the stack and start a sub-task (+)">Push +</button>
               <button class="b" id="btn-pop" title="Pop: finish this and go back to the task on the stack (−)">Pop −</button>
             </div>
             <div class="row" style="margin-top:10px" id="action-buttons">
-              <span class="muted small">Current action:</span>
+              <span class="muted small">Current action:</span> <button type="button" class="help-q" data-help="endbutton" aria-label="Help">?</button>
               <button class="b" id="btn-complete" title="Finish the entry and mark the current action Completed">Complete action</button>
               <button class="b danger" id="btn-abort" title="Finish the entry and mark the current action Aborted">Abort action</button>
               <span class="spacer"></span>
@@ -77,7 +80,7 @@
           </div>
 
           <div class="card">
-            <div class="row"><h2>Today's log</h2><span class="spacer"></span>
+            <div class="row"><h2>Today's log <button type="button" class="help-q" data-help="logedit" aria-label="Help">?</button></h2><span class="spacer"></span>
               <button class="b" id="btn-day-summary">Day summary…</button></div>
             <div id="today-summary"></div>
             <div class="entries" id="today-entries"></div>
@@ -86,12 +89,12 @@
 
         <div>
           <div class="card">
-            <div class="row"><h2>Project times today</h2></div>
+            <div class="row"><h2>Project times today <button type="button" class="help-q" data-help="viewproject" aria-label="Help">?</button></h2></div>
             <p class="muted small" style="margin-top:0">Click a project to start a new entry on it.</p>
             <table class="t" id="proj-times"></table>
           </div>
           <div class="card" id="today-actions-card">
-            <h2>Today's actions</h2>
+            <h2>Today's actions <button type="button" class="help-q" data-help="actreminder" aria-label="Help">?</button></h2>
             <p class="muted small" style="margin-top:0">A short note of what you plan to get done today (saved in today's log).</p>
             <div id="today-actions" class="fields" style="grid-template-columns:1fr"></div>
           </div>
@@ -126,15 +129,15 @@
             <label class="f"><span>From</span><input type="date" id="s-from"></label>
             <label class="f"><span>To</span><input type="date" id="s-to"></label>
             <label class="f"><span>Project</span><input id="s-project" list="dl-allprojects"></label>
-            <label class="f"><span>Activity</span><input id="s-activity" list="dl-activities"></label>
-            <label class="f"><span>Contact</span><input id="s-contact" list="dl-contacts"></label>
+            <label class="f"><span>Activity <button type="button" class="help-q" data-help="logsel_activity" aria-label="Help">?</button></span><input id="s-activity" list="dl-activities"></label>
+            <label class="f"><span>Contact <button type="button" class="help-q" data-help="logsel_contact" aria-label="Help">?</button></span><input id="s-contact" list="dl-contacts"></label>
             <label class="f"><span>Description contains</span><input id="s-text"></label>
           </div>
           <div class="row" style="margin-top:12px">
             <label class="check"><input type="checkbox" id="s-summ"> Show day summaries only</label>
             <span class="spacer"></span>
             <button class="b" id="s-copy">Copy as text</button>
-            <button class="b primary" id="s-go">Search</button>
+            <button type="button" class="help-q" data-help="logsel" aria-label="Help">?</button> <button class="b primary" id="s-go">Search</button>
           </div>
         </div>
         <div id="s-results"></div>
@@ -158,15 +161,15 @@
     <section class="view" id="view-actions">
       <div class="card">
         <div class="row" style="margin-bottom:10px">
-          <h2 style="margin:0">Actions</h2><span class="spacer"></span>
+          <h2 style="margin:0">Actions <button type="button" class="help-q" data-help="actions" aria-label="Help">?</button></h2><span class="spacer"></span>
           <button class="b primary" id="a-new">New action…</button>
         </div>
-        <div class="row" id="a-states"></div>
+        <div class="row"><div class="row" id="a-states"></div><button type="button" class="help-q" data-help="actsel_st" aria-label="Help">?</button></div>
         <div class="fields" style="margin-top:10px">
-          <label class="f"><span>Project</span><input id="a-project" list="dl-allprojects"></label>
-          <label class="f"><span>Priority ≤</span><input id="a-maxpri" type="number" min="0" max="100"></label>
+          <label class="f"><span>Project <button type="button" class="help-q" data-help="actsel_project" aria-label="Help">?</button></span><input id="a-project" list="dl-allprojects"></label>
+          <label class="f"><span>Priority ≤ <button type="button" class="help-q" data-help="actsel_maxpriority" aria-label="Help">?</button></span><input id="a-maxpri" type="number" min="0" max="100"></label>
           <label class="f"><span>Text</span><input id="a-text" placeholder="Title, Id or description"></label>
-          <label class="f"><span>Sort</span><select id="a-sort"><option value="priority">Priority</option><option value="">File order</option></select></label>
+          <label class="f"><span>Sort <button type="button" class="help-q" data-help="actsel_sortby" aria-label="Help">?</button></span><select id="a-sort"><option value="priority">Priority</option><option value="">File order</option></select></label>
         </div>
       </div>
       <div class="row muted small" id="a-stats" style="margin-bottom:8px"></div>
@@ -177,7 +180,7 @@
     <section class="view" id="view-projects">
       <div class="card">
         <div class="row" style="margin-bottom:8px">
-          <h2 style="margin:0">Projects</h2><span class="spacer"></span>
+          <h2 style="margin:0">Projects <button type="button" class="help-q" data-help="editproject" aria-label="Help">?</button></h2><span class="spacer"></span>
           <label class="check"><input type="checkbox" id="p-showclosed"> Show closed</label>
           <button class="b primary" id="p-new">Add project…</button>
         </div>
@@ -201,15 +204,15 @@
           <div class="fields">
             <label class="f"><span>Week starting (Monday)</span><input type="date" id="tb-start"></label>
             <label class="f"><span>Weeks</span><input type="number" id="tb-weeks" min="1" max="53" value="1"></label>
-            <label class="f"><span>Spread overheads</span><select id="tb-spread"><option value="off">Off</option><option value="byweek">By week</option><option value="byday">By day</option></select></label>
+            <label class="f"><span>Spread overheads <button type="button" class="help-q" data-help="timebooksel_spreadoverheads" aria-label="Help">?</button></span><select id="tb-spread"><option value="off">Off</option><option value="byweek">By week</option><option value="byday">By day</option></select></label>
             <label class="f"><span>Label projects by</span><select id="tb-bookby"><option value="code">Booking code</option><option value="name">Name</option><option value="both">Code (Name)</option></select></label>
-            <label class="f"><span>Show times as</span><select id="tb-format"><option value="hhmm">hh:mm</option><option value="hours">Decimal hours</option><option value="days">Decimal days</option></select></label>
+            <label class="f"><span>Show times as <button type="button" class="help-q" data-help="timebooksel_timeformat" aria-label="Help">?</button></span><select id="tb-format"><option value="hhmm">hh:mm</option><option value="hours">Decimal hours</option><option value="days">Decimal days</option></select></label>
           </div>
           <div class="row end" style="margin-top:12px">
             <button class="b" id="tb-prev">← Previous week</button>
             <button class="b" id="tb-nextw">Next week →</button>
             <button class="b" id="tb-csv">Download CSV</button>
-            <button class="b primary" id="tb-go">Show</button>
+            <button type="button" class="help-q" data-help="timebooksel" aria-label="Help">?</button> <button class="b primary" id="tb-go">Show</button>
           </div>
         </div>
         <div id="tb-out"></div>
@@ -219,7 +222,7 @@
           <label class="f"><span>From</span><input type="date" id="ta-from"></label>
           <label class="f"><span>To</span><input type="date" id="ta-to"></label>
           <label class="f"><span>Project (optional)</span><input id="ta-project" list="dl-allprojects"></label>
-        </div><div class="row end" style="margin-top:12px"><button class="b primary" id="ta-go">Show</button></div></div>
+        </div><div class="row end" style="margin-top:12px"><button type="button" class="help-q" data-help="reports" aria-label="Help">?</button> <button class="b primary" id="ta-go">Show</button></div></div>
         <div id="ta-out"></div>
       </div>
       <div class="sub hidden" data-sub="ptotal">
@@ -227,7 +230,7 @@
           <label class="f"><span>Project</span><input id="pt-project" list="dl-allprojects"></label>
           <label class="f"><span>From (default: project start)</span><input type="date" id="pt-from"></label>
           <label class="f"><span>To (default: project end)</span><input type="date" id="pt-to"></label>
-        </div><div class="row end" style="margin-top:12px"><button class="b primary" id="pt-go">Show</button></div></div>
+        </div><div class="row end" style="margin-top:12px"><button type="button" class="help-q" data-help="reports" aria-label="Help">?</button> <button class="b primary" id="pt-go">Show</button></div></div>
         <div id="pt-out"></div>
       </div>
       <div class="sub hidden" data-sub="progress">
@@ -235,13 +238,13 @@
           <label class="f"><span>Project (blank = all)</span><input id="pp-project" list="dl-allprojects"></label>
           <label class="f"><span>From</span><input type="date" id="pp-from"></label>
           <label class="f"><span>To</span><input type="date" id="pp-to"></label>
-        </div><div class="row end" style="margin-top:12px"><button class="b" id="pp-copy">Copy as text</button><button class="b primary" id="pp-go">Show</button></div></div>
+        </div><div class="row end" style="margin-top:12px"><button class="b" id="pp-copy">Copy as text</button><button type="button" class="help-q" data-help="reports" aria-label="Help">?</button> <button class="b primary" id="pp-go">Show</button></div></div>
         <div id="pp-out"></div>
       </div>
       <div class="sub hidden" data-sub="review">
         <div class="card">
           <p class="muted" style="margin-top:0">Time logged against each active action compared with its expected time and date. Changing an expected value records the original value and a Revised-date on the action.</p>
-          <div class="row end"><button class="b" id="rv-go">Refresh</button></div>
+          <div class="row end"><button type="button" class="help-q" data-help="hint_problem_actions_overrun" aria-label="Help">?</button> <button class="b" id="rv-go">Refresh</button></div>
         </div>
         <div id="rv-out"></div>
       </div>
@@ -249,7 +252,7 @@
         <div class="card"><div class="fields">
           <label class="f"><span>From</span><input type="date" id="ir-from"></label>
           <label class="f"><span>To</span><input type="date" id="ir-to"></label>
-        </div><div class="row end" style="margin-top:12px"><button class="b primary" id="ir-go">Show</button></div></div>
+        </div><div class="row end" style="margin-top:12px"><button type="button" class="help-q" data-help="hint_problem_interruptions" aria-label="Help">?</button> <button class="b primary" id="ir-go">Show</button></div></div>
         <div id="ir-out"></div>
       </div>
     </section>
@@ -257,18 +260,19 @@
     <!-- ================= SETTINGS ================= -->
     <section class="view" id="view-settings">
       <div class="card">
-        <h2>Settings</h2>
+        <h2>Settings <button type="button" class="help-q" data-help="editprefs" aria-label="Help">?</button></h2>
         <p class="muted small" id="set-file"></p>
         <div id="set-warnings"></div>
         <div class="fields">
-          <label class="f wide"><span>Data directory</span><input id="set-rootdir" class="mono"></label>
-          <label class="f wide"><span>Activities file (blank = &lt;data directory&gt;/activities)</span><input id="set-actfile" class="mono"></label>
-          <label class="f"><span>Date format</span><select id="set-datefmt"><option>YYYY-MM-DD</option><option>DD/MM/YYYY</option><option>MM/DD/YYYY</option></select></label>
-          <label class="f"><span>Time format</span><select id="set-timefmt"><option value="%d:%02d:%02d">H:MM:SS</option><option value="%d:%02d">H:MM</option></select></label>
-          <label class="f"><span>Hours worked per day</span><input id="set-hpd" type="number" step="0.01" min="0.5" max="23.5"></label>
-          <label class="f"><span>Spread overheads</span><select id="set-spread"><option value="off">Off</option><option value="byweek">By week</option><option value="byday">By day</option></select></label>
-          <label class="f"><span>Weekly bookings start</span><select id="set-lastweek"><option value="1">Last week</option><option value="0">This week</option></select></label>
-          <label class="f"><span>Number of “today” actions</span><input id="set-nta" type="number" min="0" max="20"></label>
+          <label class="f wide"><span>Data directory <button type="button" class="help-q" data-help="prefs_rootdir" aria-label="Help">?</button></span><input id="set-rootdir" class="mono"></label>
+          <label class="f wide"><span><button type="button" class="help-q" data-help="prefs_activitiesfile" aria-label="Help">?</button> Activities file (blank = &lt;data directory&gt;/activities)</span><input id="set-actfile" class="mono"></label>
+          <label class="f"><span>Date format <button type="button" class="help-q" data-help="prefs_dateformat" aria-label="Help">?</button></span><select id="set-datefmt"><option>YYYY-MM-DD</option><option>DD/MM/YYYY</option><option>MM/DD/YYYY</option></select></label>
+          <label class="f"><span>Time format <button type="button" class="help-q" data-help="prefs_timeformat" aria-label="Help">?</button></span><select id="set-timefmt"><option value="%d:%02d:%02d">H:MM:SS</option><option value="%d:%02d">H:MM</option></select></label>
+          <label class="f"><span>Hours worked per day <button type="button" class="help-q" data-help="prefs_showtime_hours_per_day" aria-label="Help">?</button></span><input id="set-hpd" type="number" step="0.01" min="0.5" max="23.5"></label>
+          <label class="f"><span>Spread overheads <button type="button" class="help-q" data-help="prefs_showtime_spreadoverheads" aria-label="Help">?</button></span><select id="set-spread"><option value="off">Off</option><option value="byweek">By week</option><option value="byday">By day</option></select></label>
+          <label class="f"><span>Weekly bookings start <button type="button" class="help-q" data-help="prefs_timebook_startlastweek" aria-label="Help">?</button></span><select id="set-lastweek"><option value="1">Last week</option><option value="0">This week</option></select></label>
+          <label class="f"><span>Number of “today” actions <button type="button" class="help-q" data-help="editprefs_num_today_actions" aria-label="Help">?</button></span><input id="set-nta" type="number" min="0" max="20"></label>
+          <label class="f"><span>Language (help text) <button type="button" class="help-q" data-help="prefs_language" aria-label="Help">?</button></span><select id="set-language"></select></label>
           <label class="f wide"><span>Activities (one per line)</span><textarea id="set-activities" rows="10" class="mono"></textarea></label>
         </div>
         <div class="row end" style="margin-top:12px"><button class="b primary" id="set-save">Save settings</button></div>
@@ -279,6 +283,22 @@
         <p class="muted small">These are the same files the original Tcl/Tk taglog uses. Do not run both programs at the same time: each would overwrite the other's changes.</p>
       </div>
     </section>
+
+    <!-- ================= HELP ================= -->
+    <section class="view" id="view-help">
+      <div class="help-layout">
+        <div class="card help-nav">
+          <input id="h-search" type="search" placeholder="Search help" aria-label="Search help" style="width:100%">
+          <div class="row" style="margin:10px 0">
+            <label class="f" style="flex:1"><span>Language</span><select id="h-lang"></select></label>
+          </div>
+          <label class="check small"><input type="checkbox" id="h-missing"> Show topics for features not in this version</label>
+          <div id="h-count" class="muted small" style="margin-top:8px"></div>
+          <div id="h-topics"></div>
+        </div>
+        <div class="card help-main" id="h-view"></div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -287,8 +307,14 @@
 <datalist id="dl-activities"></datalist>
 <datalist id="dl-contacts"></datalist>
 
+<dialog id="help-dlg" class="help-dlg">
+  <div class="dh"><h2 id="hd-title"></h2><button class="b" type="button" id="hd-close" aria-label="Close">✕</button></div>
+  <div class="db" id="hd-body"></div>
+  <div class="df"><button class="b" type="button" id="hd-open">Open in Help</button><span class="spacer"></span><button class="b primary" type="button" id="hd-ok">OK</button></div>
+</dialog>
+
 <dialog id="dlg"><form method="dialog" id="dlg-form">
-  <div class="dh"><h2 id="dlg-title"></h2><button class="b" type="button" id="dlg-close" aria-label="Close">✕</button></div>
+  <div class="dh"><h2 id="dlg-title"></h2><span id="dlg-help"></span><button class="b" type="button" id="dlg-close" aria-label="Close">✕</button></div>
   <div class="db" id="dlg-body"></div>
   <div class="df" id="dlg-foot"></div>
 </form></dialog>

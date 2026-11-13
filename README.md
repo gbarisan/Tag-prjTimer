@@ -44,9 +44,21 @@ Tip: in Safari or Chrome you can add the page to the Dock ("File → Add to Dock
 | **Actions** | Filter by status/project/priority/text; create and edit actions with all the original fields; state changes with notes (recorded as `<State>-date` / `<State>-note`); next-action activation on completion; subtasks; time logged per action; time-blocked actions become due after their *Active after* time. |
 | **Projects** | Add, edit, delete; booking code, start/end dates, expected time; Active, Breaks, Overheads and Immutable flags. |
 | **Reports** | Weekly time bookings by project (overheads spread by week or by day; label by code or name; hh:mm, decimal hours or decimal days; CSV download); time by activity; total time for a project; project progress; active actions review (revise expected time and date); interruptions. |
-| **Settings** | Data directory, date and time format, hours per day, overhead spreading, number of "today" actions, activities list. These are saved to `~/.taglog` in the original's format. |
+| **Settings** | Data directory, date and time format, hours per day, overhead spreading, number of "today" actions, help language, activities list. These are saved to `~/.taglog` in the original's format. |
+| **Help** | The original taglog help, browsable by section and searchable, plus the time-management hints. Small **?** buttons next to cards and form fields show the help for that item. Available in English and German (124 of 132 topics), with a few topics in French, Italian and Dutch; untranslated topics are shown in English. |
 
-Keyboard: **⌘/Ctrl + Enter** = Next.
+Keyboard: **⌘/Ctrl + Enter** = Next. **?** (when not typing in a field) = help for the current page.
+
+### About the help text
+
+The help pages are John Lines' original text from `taglog_help_<lang>.tag`, shipped unchanged in
+`taglog_web/help/`. About 30 English topics described the original's windows and menus (for
+example "right click an entry in the upper window"), so they have been rewritten for this version
+in `taglog_help_web_en.tag`, which replaces the original topic with the same Id. The German
+versions of those topics are still the original text, and the Help page marks them as possibly
+describing the old interface, with a button to show the updated English text. Topics about features
+this version does not have yet (e-mail, contacts, ...) are hidden unless you tick "Show topics for
+features not in this version".
 
 ## Compatibility with the original taglog
 
@@ -68,8 +80,8 @@ Keyboard: **⌘/Ctrl + Enter** = Next.
 These parts of the original were left for a later version: sending e-mail (SMTP) for actions and
 reports (the *Email-status-to* field is stored but no mail is sent), contacts management and vCard
 import (existing contacts are offered in lists), periodic actions and their reminder window,
-archiving old actions/projects, updating projects from a URL, German/French/Dutch translations,
-the built-in help pages, and "start procs".
+archiving old actions/projects, updating projects from a URL, translations of the interface itself
+(only the help text is translated, as in the original), and "start procs".
 
 ## Deliberate differences from the original
 

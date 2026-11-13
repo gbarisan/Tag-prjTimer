@@ -112,9 +112,11 @@ async function copyText(text) {
 }
 
 // ---------------------------------------------------------------- dialog
-function openDialog({ title, body, buttons = [], wide = false, onClose }) {
+function openDialog({ title, body, buttons = [], wide = false, onClose, help: helpId }) {
   const dlg = $("#dlg");
   $("#dlg-title").textContent = title;
+  $("#dlg-help").replaceChildren(helpId ? (helpQ(helpId) || "") : "");
+  dlg.dataset.help = helpId || "";
   const b = $("#dlg-body");
   b.replaceChildren(typeof body === "string" ? el("div", { text: body }) : body);
   const foot = $("#dlg-foot");
@@ -175,6 +177,7 @@ function showView(name) {
   if (name === "actions") loadActions();
   if (name === "projects") loadProjects();
   if (name === "settings") loadSettings();
+  if (name === "help") loadHelpView();
   if (name === "reports") initReports();
   try { localStorage.setItem("taglog.view", name); } catch (e) { /* ignore */ }
 }
@@ -371,7 +374,7 @@ function nextMenu() {
   for (const a of acts) {
     wrap.append(el("button", { type: "button", class: "b", text: a, onclick: () => { close(); doNext(a); } }));
   }
-  openDialog({ title: "Next, with activity…", body: el("div", {},
+  openDialog({ title: "Next, with activity…", help: "introduction", body: el("div", {},
     el("p", { class: "muted", style: "margin-top:0", text: "Logs the current entry and starts a new one with the chosen activity." }), wrap),
   buttons: [{ label: "Cancel" }] });
 }
@@ -400,7 +403,7 @@ function adjustDialog() {
     el("p", { class: "muted", style: "margin-top:0", text: last ? `Move the start time back towards the previous entry's start (${prevStart}).` : "Move the start time back towards the start of the day." }),
     field("New start time", input), el("div", { style: "margin:12px 0" }, slider, lbl),
     last && last.EndTime ? el("label", { class: "check" }, adjPrev, "Also set the previous entry's end time to this") : null);
-  openDialog({ title: "Adjust start time", body, buttons: [
+  openDialog({ title: "Adjust start time", help: "adjstart", body, buttons: [
     { label: "Cancel" },
     { label: "Set", primary: true, onClick: async () => {
       const data = await api("POST", "/api/adjust-start", { start: input.value, adjust_prev: adjPrev.checked });
@@ -424,7 +427,8 @@ function editEntryDialog(date, e, onChanged) {
     field("Action Id", inputs.Action), field("Action title", inputs.ActionTitle),
     field("Contact", inputs.Contact), field("Rate", inputs.Rate), field("Stack-info", inputs["Stack-info"]),
     field("Description", inputs.Description, "wide"));
-  openDialog({ title: `Edit entry — ${fmtDate(date)}`, body, buttons: [
+  addFieldHelp(inputs, n => "logedit_" + n.toLowerCase().replace(/-/g, "_"));
+  openDialog({ title: `Edit entry — ${fmtDate(date)}`, help: "logedit", body, buttons: [
     { label: "Delete", danger: true, onClick: async () => {
       if (!(await confirmDialog("Delete entry", "Delete this log entry? This cannot be undone.", "Delete", true))) return;
       await api("DELETE", `/api/log/${date}/${e._index}`);
@@ -442,7 +446,7 @@ function editEntryDialog(date, e, onChanged) {
 
 async function daySummaryDialog(date, current, onDone) {
   const ta = el("textarea", { rows: 12, value: current || "" });
-  openDialog({ title: `Summary of ${fmtDate(date)}`, body: el("div", {},
+  openDialog({ title: `Summary of ${fmtDate(date)}`, help: "summarybox", body: el("div", {},
     el("p", { class: "muted", style: "margin-top:0", text: "Enter the summary of what you did on this day." }), ta),
   buttons: [{ label: "Cancel" }, { label: "Save", primary: true, onClick: async () => {
     await api("POST", `/api/log/${date}/summary`, { text: ta.value });
@@ -760,7 +764,8 @@ async function actionDialog(id, preset) {
     else { const r = await api("POST", "/api/actions", b); toast(`Action ${r.action.Id} added`); }
     refreshAfterActionChange();
   } });
-  openDialog({ title: id ? `Action ${id}` : "New action", body, buttons, wide: true });
+  addFieldHelp(inp, n => "actinput_" + n.toLowerCase().replace(/-/g, "_"));
+  openDialog({ title: id ? `Action ${id}` : "New action", help: "actinput", body, buttons, wide: true });
 }
 function refreshAfterActionChange() {
   if ($("#view-actions").classList.contains("active")) loadActions();
@@ -823,7 +828,8 @@ function projectDialog(p) {
     if (isNew) await api("POST", "/api/projects", b); else await api("PUT", `/api/projects/${encodeURIComponent(p.name)}`, b);
     toast("Project saved"); loadProjects();
   } });
-  openDialog({ title: isNew ? "Add project" : `Project ${p.name}`, body, buttons });
+  addFieldHelp(inp, n => ({ expected_time: "project_expectedtime", end: "ep_enddate" })[n]);
+  openDialog({ title: isNew ? "Add project" : `Project ${p.name}`, help: isNew ? "addproject" : "editproject", body, buttons });
 }
 
 function setupProjects() {
@@ -993,6 +999,12 @@ async function loadSettings() {
   $("#set-spread").value = p.showtime_spreadoverheads;
   $("#set-lastweek").value = p.timebook_startlastweek;
   $("#set-nta").value = p.num_today_actions;
+  if (!help.index) await loadHelpIndex();
+  const langs = help.index.languages.slice();
+  if (!langs.find(l => l.code === p.language)) langs.push({ code: p.language, name: p.language, topics: 0 });
+  $("#set-language").replaceChildren(...langs.map(l => el("option", { value: l.code,
+    text: l.code === "en" ? l.name : `${l.name} (${l.topics} help topics)` })));
+  $("#set-language").value = p.language;
   $("#set-activities").value = (p.activities || []).join("\n");
   const files = [["Data directory", p.rootdir_expanded], ["Projects", p.files.projects], ["Actions", p.files.actions],
     ["Contacts", p.files.contacts], ["Activities", p.activities_file]];
@@ -1004,15 +1016,173 @@ function setupSettings() {
       rootdir: $("#set-rootdir").value.trim() || "~/diary",
       activitiesfilename: $("#set-actfile").value.trim(),
       dateformat_view: $("#set-datefmt").value, currentTimeFormat: $("#set-timefmt").value,
-      showtime_hours_per_day: $("#set-hpd").value, showtime_spreadoverheads: $("#set-spread").value,
+      showtime_hours_per_day: $("#set-hpd").value, language: $("#set-language").value, showtime_spreadoverheads: $("#set-spread").value,
       timebook_startlastweek: $("#set-lastweek").value, num_today_actions: $("#set-nta").value,
     };
     const activities = $("#set-activities").value.split("\n").map(s => s.trim()).filter(Boolean);
     await api("POST", "/api/prefs", { values, activities });
     toast("Settings saved");
+    help.lang = null;
     reportsInit = false;
     loadSettings();
   });
+}
+
+// ================================================================ HELP
+const help = { ids: new Set(), index: null, lang: null, current: null, matches: null };
+
+function helpLang() {
+  return help.lang || (state.prefs && state.prefs.language) || "en";
+}
+async function loadHelpIndex(lang) {
+  const q = new URLSearchParams({ lang: lang || helpLang() });
+  const data = await api("GET", "/api/help?" + q);
+  help.index = data;
+  help.ids = new Set(data.topics.map(t => t.id));
+  return data;
+}
+/** A small "?" button for a help topic, or null if there is no such topic. */
+function helpQ(id) {
+  if (help.index && !help.ids.has(id)) return null;
+  return el("button", { type: "button", class: "help-q", "data-help": id, "aria-label": "Help", text: "?" });
+}
+/** Turn plain help text into nodes, making http(s) URLs clickable. */
+function helpTextNodes(text) {
+  const out = [];
+  const re = /https?:\/\/[^\s<>()]+[^\s<>().,;:'"]/g;
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    out.push(text.slice(last, m.index));
+    out.push(el("a", { href: m[0], target: "_blank", rel: "noopener noreferrer", text: m[0] }));
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
+function helpNotes(t) {
+  const langName = code => {
+    const l = help.index && help.index.languages.find(x => x.code === code);
+    return l ? l.name : code;
+  };
+  const notes = [];
+  if (!t.found) return notes;
+  if (!t.translated) notes.push(`Not translated into ${langName(t.requested_lang)} yet — showing ${langName(t.lang)}.`);
+  if (t.describes_original_ui) notes.push("This text comes from the original taglog and may describe its old windows and menus. The English version has been updated for this program.");
+  if (t.group === "missing") notes.push("This topic is about a feature of the original taglog that this version does not have yet.");
+  return notes.map(n => el("p", { class: "help-note banner", text: n }));
+}
+async function fetchTopic(id, lang) {
+  return api("GET", `/api/help/${encodeURIComponent(id)}?` + new URLSearchParams({ lang: lang || helpLang() }));
+}
+async function showHelp(id) {
+  const t = await fetchTopic(id);
+  $("#hd-title").textContent = t.title;
+  $("#hd-body").replaceChildren(...helpNotes(t), el("div", { class: "help-text" }, ...helpTextNodes(t.text)));
+  $("#hd-open").onclick = () => { $("#help-dlg").close(); if ($("#dlg").open) $("#dlg").close(); showView("help"); selectTopic(id); };
+  const d = $("#help-dlg");
+  if (!d.open) d.showModal();
+  $("#hd-ok").focus();
+}
+
+function renderHelpTopics() {
+  const box = $("#h-topics");
+  if (!help.index) return;
+  const showMissing = $("#h-missing").checked;
+  const matches = help.matches ? new Set(help.matches) : null;
+  const groups = [];
+  let n = 0;
+  for (const g of help.index.groups) {
+    if (g.id === "missing" && !showMissing && !matches) continue;
+    const topics = help.index.topics.filter(t => t.group === g.id && (!matches || matches.has(t.id)));
+    if (!topics.length) continue;
+    n += topics.length;
+    topics.sort((a, b) => {
+      const pa = a.title.includes(":") ? 1 : 0, pb = b.title.includes(":") ? 1 : 0;
+      return pa - pb || a.title.localeCompare(b.title);
+    });
+    groups.push(el("div", { class: "help-group" }, el("h3", { text: g.name }),
+      ...topics.map(t => el("button", { type: "button", class: t.id === help.current ? "active" : "", "data-topic": t.id,
+        onclick: () => selectTopic(t.id) }, t.title, !t.translated && helpLang() !== "en" ? el("span", { class: "untr", text: "(en)" }) : null))));
+  }
+  $("#h-count").textContent = matches ? `${n} matching topic${n === 1 ? "" : "s"}` : "";
+  box.replaceChildren(...(groups.length ? groups : [el("div", { class: "empty", text: "No topics match." })]));
+}
+async function selectTopic(id) {
+  help.current = id;
+  try { localStorage.setItem("taglog.helpTopic", id); } catch (e) { /* ignore */ }
+  $$("#h-topics button[data-topic]").forEach(b => b.classList.toggle("active", b.dataset.topic === id));
+  const t = await fetchTopic(id);
+  const related = [];
+  if (t.describes_original_ui || !t.translated) {
+    related.push(el("button", { type: "button", class: "b", text: t.describes_original_ui ? "Show the updated English text" : "Show in English",
+      onclick: async () => { const en = await fetchTopic(id, "en"); renderHelpTopic(en, []); } }));
+  }
+  renderHelpTopic(t, related);
+}
+function renderHelpTopic(t, extra) {
+  $("#h-view").replaceChildren(el("h2", { text: t.title }), ...helpNotes(t),
+    el("div", { class: "help-text" }, ...helpTextNodes(t.text)),
+    extra && extra.length ? el("div", { class: "row", style: "margin-top:16px" }, ...extra) : "",
+    el("p", { class: "muted small", style: "margin-top:20px" }, `Topic id: ${t.id}`));
+}
+async function loadHelpView() {
+  const sel = $("#h-lang");
+  if (!sel.options.length || (help.index && help.index.lang !== helpLang())) await loadHelpIndex();
+  sel.replaceChildren(...help.index.languages.map(l => el("option", { value: l.code,
+    text: `${l.name}${l.code === "en" ? "" : ` (${l.topics} topics)`}` })));
+  sel.value = helpLang();
+  renderHelpTopics();
+  let id = help.current;
+  if (!id) { try { id = localStorage.getItem("taglog.helpTopic"); } catch (e) { /* ignore */ } }
+  selectTopic(id && help.ids.has(id) ? id : "introduction");
+}
+function setupHelp() {
+  document.addEventListener("click", ev => {
+    const b = ev.target.closest(".help-q[data-help]");
+    if (!b) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    showHelp(b.dataset.help);
+  });
+  $("#hd-close").addEventListener("click", () => $("#help-dlg").close());
+  $("#hd-ok").addEventListener("click", () => $("#help-dlg").close());
+  $("#h-missing").addEventListener("change", renderHelpTopics);
+  $("#h-lang").addEventListener("change", async e => {
+    help.lang = e.target.value;
+    await loadHelpIndex();
+    if ($("#h-search").value.trim()) await runHelpSearch(); else renderHelpTopics();
+    if (help.current) selectTopic(help.current);
+  });
+  const runHelpSearch = async () => {
+    const q = $("#h-search").value.trim();
+    if (!q) { help.matches = null; renderHelpTopics(); return; }
+    const d = await api("GET", "/api/help?" + new URLSearchParams({ lang: helpLang(), q }));
+    help.matches = d.matches || [];
+    renderHelpTopics();
+  };
+  $("#h-search").addEventListener("input", debounce(runHelpSearch, 250));
+  // "?" key: help for the page you are on (when not typing)
+  const viewTopic = { today: "introduction", log: "logsel", actions: "actions", projects: "editproject", reports: "reports", settings: "editprefs" };
+  document.addEventListener("keydown", ev => {
+    if (ev.key !== "?" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    const t = ev.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if ($("#help-dlg").open) return;
+    ev.preventDefault();
+    const view = ($(".view.active") || {}).id || "";
+    const name = view.replace("view-", "");
+    if (name === "help") { $("#h-search").focus(); return; }
+    showHelp($("#dlg").open && $("#dlg").dataset.help ? $("#dlg").dataset.help : (viewTopic[name] || "introduction"));
+  });
+}
+/** Add "?" buttons to the labels of a dialog's fields. */
+function addFieldHelp(inputs, topicFor) {
+  for (const [name, input] of Object.entries(inputs)) {
+    const id = topicFor(name);
+    const q = id && helpQ(id);
+    const span = input.closest("label.f") && input.closest("label.f").querySelector(":scope > span");
+    if (q && span) span.append(" ", q);
+  }
 }
 
 // ================================================================ boot
@@ -1027,9 +1197,12 @@ function boot() {
   setupProjects();
   setupReports();
   setupSettings();
+  setupHelp();
   let v = "today";
   try { v = localStorage.getItem("taglog.view") || "today"; } catch (e) { /* ignore */ }
   // Always load today's data first (prefs, lists), then switch view.
-  loadToday().then(() => { if (v !== "today") showView(v); }).catch(() => {});
+  loadToday()
+    .then(() => loadHelpIndex())
+    .then(() => { if (v !== "today") showView(v); }).catch(() => {});
 }
 document.addEventListener("DOMContentLoaded", boot);

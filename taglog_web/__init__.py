@@ -8,4 +8,4 @@ This port is free software released under the GNU General Public License,
 version 3 or (at your option) any later version. See LICENSE.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

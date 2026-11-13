@@ -21,6 +21,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from . import __version__
 from . import reports
 from . import tagfile as tf
+from .help import HelpLibrary
 from .prefs import Prefs
 from .session import Session
 from .store import ACTION_FIELDS, ACTION_TEXT_FIELDS, LOG_FIELDS, VALID_STATES, Store, StoreError, entry_to_dict
@@ -49,6 +50,7 @@ class App:
         self.prefs = Prefs(prefs_path)
         self.store = Store(self.prefs)
         self.session = Session(self.store)
+        self.help = HelpLibrary()
         self.routes: List[Tuple[str, re.Pattern, Callable]] = []
         self._register()
 
@@ -408,6 +410,19 @@ class App:
         @r("GET", "/api/reports/review")
         def get_rep_review(q, b):
             return reports.active_actions_review(st)
+
+        # -- help ---------------------------------------------------------
+        @r("GET", "/api/help")
+        def get_help_index(q, b):
+            lang = q.get("lang") or self.prefs.language
+            out = self.help.index(lang)
+            if q.get("q"):
+                out["matches"] = self.help.search(q["q"], lang)
+            return out
+
+        @r("GET", "/api/help/([A-Za-z0-9_.-]+)")
+        def get_help_topic(tid, q, b):
+            return self.help.topic(tid, q.get("lang") or self.prefs.language, __version__)
 
         # -- prefs --------------------------------------------------------
         @r("GET", "/api/prefs")
