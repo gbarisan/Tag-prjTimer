@@ -149,7 +149,8 @@ when you move to the next entry.
 
 The Rate field associates a rate with the current entry. It is 'sticky': if
 you indicate that you are now on Overtime rate you will stay on it until you
-clear the rate.
+clear the rate. If an hourly rate is set in Settings, Overtime entries are
+charged at the hourly rate multiplied by the overtime multiplier.
 END_D
 End:
 Id: stack
@@ -306,6 +307,10 @@ Projects without a booking code are shown by name.
 Choose the Monday the report starts on, and how many weeks to show. Use
 Previous week and Next week to move through the weeks. Download CSV saves
 the report for a spreadsheet.
+
+If an hourly rate is set in Settings, the report also shows, for each
+project and for the week, the overtime and the amount. Spread overheads
+carry their amount with them in the same proportion as their time.
 END_D
 End:
 Id: timebooksel_spreadoverheads
@@ -440,3 +445,27 @@ compare your latest estimates with the original ones. Use this information to
 help you give better original estimates in future.
 END_D
 End:
+Id: prefs_rates
+Title: Setting: rates
+Description:: END_D
+If you set an hourly rate, the Weekly bookings report and the Project total
+report also show amounts (and the CSV download includes them).
+
+Hourly rate: the amount charged per hour of normal time.
+
+Overtime multiplier: entries whose Rate is Overtime are charged at the hourly
+rate multiplied by this number. For example, with an hourly rate of 40 and a
+multiplier of 1.5, an hour of overtime is charged 60. You mark entries as
+Overtime with the Rate field on the Today page.
+
+Currency: shown in front of amounts, for example € or CHF. It is only a label;
+no conversion is done.
+
+Time on projects marked as Breaks is not charged. Leave the hourly rate empty
+to hide amounts.
+
+These settings are only used by this version of taglog. They are saved below
+the "automatically saved" line in your preferences file, where the original
+taglog leaves them alone.
+END_D
+End: 

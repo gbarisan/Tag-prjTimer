@@ -43,8 +43,16 @@ Tip: in Safari or Chrome you can add the page to the Dock ("File → Add to Dock
 | **Log & search** | Browse any day; edit entries; day summaries; search by date range, project, activity, contact and text; month and year summaries. |
 | **Actions** | Filter by status/project/priority/text; create and edit actions with all the original fields; state changes with notes (recorded as `<State>-date` / `<State>-note`); next-action activation on completion; subtasks; time logged per action; time-blocked actions become due after their *Active after* time. |
 | **Projects** | Add, edit, delete; booking code, start/end dates, expected time; Active, Breaks, Overheads and Immutable flags. |
-| **Reports** | Weekly time bookings by project (overheads spread by week or by day; label by code or name; hh:mm, decimal hours or decimal days; CSV download); time by activity; total time for a project; project progress; active actions review (revise expected time and date); interruptions. |
-| **Settings** | Data directory, date and time format, hours per day, overhead spreading, number of "today" actions, help language, activities list. These are saved to `~/.taglog` in the original's format. |
+| **Reports** | Weekly time bookings by project (overheads spread by week or by day; label by code or name; hh:mm, decimal hours or decimal days; overtime and amounts when an hourly rate is set; CSV download); time by activity; total time for a project; project progress; active actions review (revise expected time and date); interruptions. |
+| **Settings** | Data directory, date and time format, hours per day, overhead spreading, number of "today" actions, help language, activities list, and **rates** (hourly rate, overtime multiplier, currency). These are saved to `~/.taglog` in the original's format; the rates, which only this version uses, are saved below the "automatically saved" line so the original taglog keeps them. |
+
+### Rates and amounts
+
+Set an **hourly rate** in Settings to see amounts in the Weekly bookings and Project total reports
+(and in the CSV download). Entries whose Rate is **Overtime** (set with the Rate field on the Today
+page) are charged at the hourly rate × the **overtime multiplier** (default 1.5). Time on Breaks
+projects is not charged. When overheads are spread, their amount is spread in the same proportion
+as their time. The currency is only a label; no conversion is done.
 | **Help** | The original taglog help, browsable by section and searchable, plus the time-management hints. Small **?** buttons next to cards and form fields show the help for that item. Available in English and German (124 of 132 topics), with a few topics in French, Italian and Dutch; untranslated topics are shown in English. |
 
 Keyboard: **⌘/Ctrl + Enter** = Next. **?** (when not typing in a field) = help for the current page.

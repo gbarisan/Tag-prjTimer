@@ -20,6 +20,17 @@ def _dur(e: tf.Entry) -> int:
     return entry_duration(tf.entry_val(e, "StartTime"), tf.entry_val(e, "EndTime"))
 
 
+def is_overtime(e: tf.Entry) -> bool:
+    """Entries whose Rate is "Overtime" (the value the original offers)."""
+    return tf.entry_val(e, "Rate").strip().lower() == "overtime"
+
+
+def money(weighted_secs: float, hourly_rate: float) -> float:
+    """Amount for a number of 'rate-weighted' seconds (overtime seconds count
+    multiplier times)."""
+    return round(weighted_secs / 3600.0 * hourly_rate, 2)
+
+
 # ---------------------------------------------------------------------------
 # Today's project times (doShowProjects / fillpreventries)
 # ---------------------------------------------------------------------------
@@ -53,12 +64,17 @@ def monday_of(d: dt.date) -> dt.date:
 
 
 def time_bookings(store: Store, start: dt.date, weeks: int = 1, spread: str = "byweek",
-                  book_by: str = "code") -> Dict[str, object]:
+                  book_by: str = "code", hourly_rate: float = 0.0,
+                  overtime_multiplier: float = 1.5) -> Dict[str, object]:
     """Weekly time bookings.
 
     spread: 'off' | 'byweek' | 'byday' - how time on Overheads projects is
     redistributed over the other (non-break, non-immutable) projects.
     book_by: 'code' | 'name' | 'both' - how projects are labelled.
+    hourly_rate: if > 0, amounts are added. Entries with Rate "Overtime" cost
+    hourly_rate * overtime_multiplier; Breaks projects cost nothing. Spread
+    overheads carry their cost (and overtime) with them in the same proportion
+    as their time.
     """
     pmap = store.project_map()
 
@@ -87,6 +103,13 @@ def time_bookings(store: Store, start: dt.date, weeks: int = 1, spread: str = "b
         nonbreaks = breaks = overheads = immutable = 0
         warnings = []
         per_day_proj: List[Dict[str, int]] = [dict() for _ in range(7)]
+        # overtime seconds and rate-weighted seconds, per project and for overheads
+        ot: Dict[str, float] = {}
+        wsec: Dict[str, float] = {}
+        day_oh_ot = [0.0] * 7
+        day_oh_w = [0.0] * 7
+        ot_total = 0
+        w_total = 0.0
 
         for i, d in enumerate(days):
             if not store.read_log(d):
@@ -96,19 +119,30 @@ def time_bookings(store: Store, start: dt.date, weeks: int = 1, spread: str = "b
             for e in _entries(store, d):
                 p = tf.entry_val(e, "Project") or "unknown"
                 dur = _dur(e)
+                otime = dur if is_overtime(e) else 0
+                weighted = dur + otime * (overtime_multiplier - 1)
                 if flag(p, "breaks"):
                     breaks += dur
-                elif spread != "off" and flag(p, "overheads"):
+                    continue
+                ot_total += otime
+                w_total += weighted
+                if spread != "off" and flag(p, "overheads"):
                     daytotal[i] += dur
                     nonbreaks += dur
                     overheads += dur
                     dayoverheads[i] += dur
+                    day_oh_ot[i] += otime
+                    day_oh_w[i] += weighted
                 else:
                     key = label(p)
                     if key not in projtimes:
                         booked.append(key)
                         projtimes[key] = [0] * 7
+                        ot[key] = 0.0
+                        wsec[key] = 0.0
                     projtimes[key][i] += dur
+                    ot[key] += otime
+                    wsec[key] += weighted
                     per_day_proj[i][key] = per_day_proj[i].get(key, 0) + dur
                     daytotal[i] += dur
                     nonbreaks += dur
@@ -126,6 +160,8 @@ def time_bookings(store: Store, start: dt.date, weeks: int = 1, spread: str = "b
                     for i in range(7):
                         if dayoverheads[i]:
                             projtimes[k][i] += int(round(dayoverheads[i] * frac))
+                            ot[k] += day_oh_ot[i] * frac
+                            wsec[k] += day_oh_w[i] * frac
         elif spread == "byday":
             for i in range(7):
                 if not dayoverheads[i]:
@@ -136,8 +172,13 @@ def time_bookings(store: Store, start: dt.date, weeks: int = 1, spread: str = "b
                 for k, v in per_day_proj[i].items():
                     if k in spreadable:
                         projtimes[k][i] += int(round(dayoverheads[i] * v / base))
+                        ot[k] += day_oh_ot[i] * v / base
+                        wsec[k] += day_oh_w[i] * v / base
 
-        rows = [{"project": k, "days": projtimes[k], "total": sum(projtimes[k])} for k in booked]
+        rows = [{"project": k, "days": projtimes[k], "total": sum(projtimes[k]),
+                 "overtime": int(round(ot[k])),
+                 "amount": money(wsec[k], hourly_rate) if hourly_rate else None}
+                for k in booked]
         out_weeks.append({
             "start": wstart.isoformat(),
             "iso_week": wstart.isocalendar()[1],
@@ -148,24 +189,38 @@ def time_bookings(store: Store, start: dt.date, weeks: int = 1, spread: str = "b
             "breaks_total": breaks,
             "overheads_total": overheads if spread != "off" else 0,
             "unspread_overheads": sum(dayoverheads) if not booked else 0,
+            "overtime_total": ot_total,
+            "amount_total": money(w_total, hourly_rate) if hourly_rate else None,
             "warnings": warnings,
         })
-    return {"weeks": out_weeks, "spread": spread, "book_by": book_by}
+    return {"weeks": out_weeks, "spread": spread, "book_by": book_by,
+            "rates": {"hourly": hourly_rate, "overtime_multiplier": overtime_multiplier}
+            if hourly_rate else None}
 
 
 def time_bookings_csv(report: Dict[str, object], fmt: str = "hours",
-                      hours_per_day: float = 7.58) -> str:
+                      hours_per_day: float = 7.58, currency: str = "") -> str:
     buf = io.StringIO()
     w = csv.writer(buf)
+    priced = bool(report.get("rates"))
+    amount_head = f"Amount ({currency})" if currency else "Amount"
+
+    def f(v):
+        return format_duration(v, fmt, hours_per_day)
+
+    def a(v):
+        return "" if v is None else f"{v:.2f}"
     for week in report["weeks"]:  # type: ignore[index]
         days = [dt.date.fromisoformat(x) for x in week["days"]]
-        w.writerow(["Project", "Total"] + [d.strftime("%a %d/%m") for d in days])
+        extra_head = ["Overtime", amount_head] if priced else []
+        w.writerow(["Project", "Total"] + [d.strftime("%a %d/%m") for d in days] + extra_head)
         for row in week["rows"]:
-            w.writerow([row["project"], format_duration(row["total"], fmt, hours_per_day)] +
-                       [format_duration(v, fmt, hours_per_day) for v in row["days"]])
-        w.writerow(["Total (non breaks)", format_duration(week["nonbreaks_total"], fmt, hours_per_day)] +
-                   [format_duration(v, fmt, hours_per_day) for v in week["day_totals"]])
-        w.writerow(["Breaks total", format_duration(week["breaks_total"], fmt, hours_per_day)])
+            extra = [f(row["overtime"]), a(row["amount"])] if priced else []
+            w.writerow([row["project"], f(row["total"])] + [f(v) for v in row["days"]] + extra)
+        extra = [f(week["overtime_total"]), a(week["amount_total"])] if priced else []
+        w.writerow(["Total (non breaks)", f(week["nonbreaks_total"])] +
+                   [f(v) for v in week["day_totals"]] + extra)
+        w.writerow(["Breaks total", f(week["breaks_total"])])
         w.writerow([])
     return buf.getvalue()
 
@@ -195,9 +250,11 @@ def time_by_activity(store: Store, start: Optional[dt.date], end: Optional[dt.da
 # ---------------------------------------------------------------------------
 
 def project_total(store: Store, project: str, start: Optional[dt.date],
-                  end: Optional[dt.date]) -> Dict[str, object]:
+                  end: Optional[dt.date], hourly_rate: float = 0.0,
+                  overtime_multiplier: float = 1.5) -> Dict[str, object]:
     files = store.log_files_between(start, end)
     total = 0
+    overtime = 0
     days = []
     acts: Dict[str, int] = {}
     for d in files:
@@ -207,15 +264,24 @@ def project_total(store: Store, project: str, start: Optional[dt.date],
                 continue
             dur = _dur(e)
             total += dur
+            if is_overtime(e):
+                overtime += dur
             a = tf.entry_val(e, "Activity") or "unknown"
             acts[a] = acts.get(a, 0) + dur
             found = True
         if found:
             days.append(d)
     p = store.project_map().get(project, {})
+    amount = None
+    if hourly_rate:
+        weighted = 0 if p.get("breaks") else total + overtime * (overtime_multiplier - 1)
+        amount = money(weighted, hourly_rate)
     return {
         "project": project,
         "total": total,
+        "overtime": overtime,
+        "amount": amount,
+        "breaks": bool(p.get("breaks")),
         "files_examined": len(files),
         "days_with_entries": len(days),
         "first_date": days[0].isoformat() if days else "",

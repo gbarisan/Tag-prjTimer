@@ -80,6 +80,12 @@ function fmtDur(secs, mode) {
 }
 /** Elapsed time in the same style as start/end times: H:MM:SS, or H:MM when
  *  the "Time format" setting is H:MM (seconds are then dropped, as taglog does). */
+/** Money with 2 decimals and the currency from Settings, e.g. "€ 1,234.50". */
+function fmtMoney(v, cur) {
+  if (v === null || v === undefined) return "";
+  const n = Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return cur ? `${cur} ${n}` : n;
+}
 function fmtHM(secs) {
   secs = Math.max(0, Math.round(secs || 0));
   const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
@@ -875,16 +881,24 @@ async function loadTimebook() {
   const out = [];
   for (const w of data.weeks) {
     const days = w.days.map(d => { const x = parseIso(d); return `${WD[x.getDay()]} ${pad(x.getDate())}/${pad(x.getMonth() + 1)}`; });
+    const priced = !!data.rates;
+    const cur = data.currency || "";
+    const moneyCells = (otSecs, amount, bold) => priced ? [
+      el("td", { class: "num", text: otSecs ? fmtDur(otSecs, fmt) : "" }),
+      el("td", { class: "num", text: fmtMoney(amount, cur), style: bold ? "font-weight:700" : null })] : [];
     const tbl = el("table", { class: "t" },
-      el("thead", {}, el("tr", {}, el("th", { text: "Project" }), el("th", { class: "num", text: "Total" }), ...days.map(d => el("th", { class: "num", text: d })))),
+      el("thead", {}, el("tr", {}, el("th", { text: "Project" }), el("th", { class: "num", text: "Total" }), ...days.map(d => el("th", { class: "num", text: d })),
+        ...(priced ? [el("th", { class: "num", text: "Overtime" }), el("th", { class: "num", text: cur ? `Amount (${cur})` : "Amount" })] : []))),
       el("tbody", {},
         ...w.rows.map(r => el("tr", {}, el("td", { text: r.project }), el("td", { class: "num", text: fmtDur(r.total, fmt), style: "font-weight:700" }),
-          ...r.days.map(v => el("td", { class: "num", text: v ? fmtDur(v, fmt) : "" })))),
+          ...r.days.map(v => el("td", { class: "num", text: v ? fmtDur(v, fmt) : "" })), ...moneyCells(r.overtime, r.amount, true))),
         el("tr", { class: "total" }, el("td", { text: "Total (non breaks)" }), el("td", { class: "num", text: fmtDur(w.nonbreaks_total, fmt) }),
-          ...w.day_totals.map(v => el("td", { class: "num", text: v ? fmtDur(v, fmt) : "" }))),
+          ...w.day_totals.map(v => el("td", { class: "num", text: v ? fmtDur(v, fmt) : "" })), ...moneyCells(w.overtime_total, w.amount_total, true)),
         el("tr", {}, el("td", { class: "muted", text: "Breaks total" }), el("td", { class: "num", text: fmtDur(w.breaks_total, fmt) }))));
     const card = el("div", { class: "card" },
       el("h2", { text: `Week ${w.iso_week} — ${fmtDate(w.days[0])} to ${fmtDate(w.days[6])}` }),
+      priced ? el("p", { class: "muted small", text: `Amounts at ${fmtMoney(data.rates.hourly, cur)} per hour; overtime × ${data.rates.overtime_multiplier}. Breaks are not charged.` })
+        : el("p", { class: "muted small", text: "Set an hourly rate in Settings to see amounts." }),
       w.overheads_total ? el("p", { class: "muted small", text: `Overheads of ${fmtHM(w.overheads_total)} spread ${data.spread === "byday" ? "per day" : "over the week"} in proportion to project time.` }) : null,
       el("div", { class: "scroll-x" }, tbl),
       w.warnings.length ? el("p", { class: "muted small", text: w.warnings.join(" · ") }) : null);
@@ -906,6 +920,8 @@ async function loadProjectTotal() {
   const d = await api("GET", "/api/reports/project-total?" + q);
   $("#pt-out").replaceChildren(el("div", { class: "card" },
     el("h2", { text: `Total time for ${d.project}: ${fmtHM(d.total)} (${fmtDur(d.total, "days")} days, ${fmtDur(d.total, "hours")} hours)` }),
+    d.amount !== null && d.amount !== undefined ? el("p", {}, el("b", { text: `Amount: ${fmtMoney(d.amount, d.currency)}` }),
+      d.breaks ? " (Breaks project: not charged)" : (d.overtime ? ` — includes ${fmtHM(d.overtime)} of overtime` : "")) : null,
     el("p", { class: "muted", text: `Examined ${d.files_examined} day files and found entries in ${d.days_with_entries} of them.` +
       (d.first_date ? ` First date ${fmtDate(d.first_date)}, last date ${fmtDate(d.last_date)}.` : "") +
       (d.expected_time ? ` Expected time: ${d.expected_time}.` : "") }),
@@ -1013,6 +1029,9 @@ async function loadSettings() {
     text: l.code === "en" ? l.name : `${l.name} (${l.topics} help topics)` })));
   $("#set-language").value = p.language;
   $("#set-activities").value = (p.activities || []).join("\n");
+  $("#set-rate").value = p.hourly_rate;
+  $("#set-otmult").value = p.overtime_multiplier;
+  $("#set-currency").value = p.rate_currency;
   const files = [["Data directory", p.rootdir_expanded], ["Projects", p.files.projects], ["Actions", p.files.actions],
     ["Contacts", p.files.contacts], ["Activities", p.activities_file]];
   $("#set-files").replaceChildren(el("tbody", {}, ...files.map(([k, v]) => el("tr", {}, el("td", { class: "muted", text: k }), el("td", { class: "mono", text: v })))));
@@ -1023,7 +1042,8 @@ function setupSettings() {
       rootdir: $("#set-rootdir").value.trim() || "~/diary",
       activitiesfilename: $("#set-actfile").value.trim(),
       dateformat_view: $("#set-datefmt").value, currentTimeFormat: $("#set-timefmt").value,
-      showtime_hours_per_day: $("#set-hpd").value, language: $("#set-language").value, showtime_spreadoverheads: $("#set-spread").value,
+      showtime_hours_per_day: $("#set-hpd").value, language: $("#set-language").value,
+      hourly_rate: $("#set-rate").value, overtime_multiplier: $("#set-otmult").value, rate_currency: $("#set-currency").value, showtime_spreadoverheads: $("#set-spread").value,
       timebook_startlastweek: $("#set-lastweek").value, num_today_actions: $("#set-nta").value,
     };
     const activities = $("#set-activities").value.split("\n").map(s => s.trim()).filter(Boolean);

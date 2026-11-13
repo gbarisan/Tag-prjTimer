@@ -380,9 +380,12 @@ class App:
                 weeks = int(q.get("weeks") or 1)
             except ValueError:
                 raise ApiError("weeks must be a number")
-            return reports.time_bookings(st, start, weeks,
-                                         q.get("spread") or self.prefs.spread_overheads,
-                                         q.get("book_by") or self.prefs.book_by)
+            rep = reports.time_bookings(st, start, weeks,
+                                        q.get("spread") or self.prefs.spread_overheads,
+                                        q.get("book_by") or self.prefs.book_by,
+                                        self.prefs.hourly_rate, self.prefs.overtime_multiplier)
+            rep["currency"] = self.prefs.currency
+            return rep
 
         @r("GET", "/api/reports/activity")
         def get_rep_activity(q, b):
@@ -395,8 +398,11 @@ class App:
             if not p:
                 raise ApiError("Choose a project")
             proj = st.project_map().get(p, {})
-            return reports.project_total(st, p, _date(q.get("from") or str(proj.get("start") or "")),
-                                         _date(q.get("to") or str(proj.get("end") or "")))
+            rep = reports.project_total(st, p, _date(q.get("from") or str(proj.get("start") or "")),
+                                        _date(q.get("to") or str(proj.get("end") or "")),
+                                        self.prefs.hourly_rate, self.prefs.overtime_multiplier)
+            rep["currency"] = self.prefs.currency
+            return rep
 
         @r("GET", "/api/reports/interruptions")
         def get_rep_interruptions(q, b):
@@ -445,7 +451,7 @@ class App:
     def timebook_csv(self, q: Dict[str, str]) -> str:
         rep = self.dispatch("GET", "/api/reports/timebook", q, {})
         return reports.time_bookings_csv(rep, q.get("format") or self.prefs.duration_format,
-                                         self.prefs.hours_per_day)
+                                         self.prefs.hours_per_day, self.prefs.currency)
 
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}

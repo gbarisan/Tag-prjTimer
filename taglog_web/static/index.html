@@ -265,7 +265,7 @@
         <div id="set-warnings"></div>
         <div class="fields">
           <label class="f wide"><span>Data directory <button type="button" class="help-q" data-help="prefs_rootdir" aria-label="Help">?</button></span><input id="set-rootdir" class="mono"></label>
-          <label class="f wide"><span><button type="button" class="help-q" data-help="prefs_activitiesfile" aria-label="Help">?</button> Activities file (blank = &lt;data directory&gt;/activities)</span><input id="set-actfile" class="mono"></label>
+          <label class="f wide"><span>Activities file (blank = &lt;data directory&gt;/activities) <button type="button" class="help-q" data-help="prefs_activitiesfile" aria-label="Help">?</button></span><input id="set-actfile" class="mono"></label>
           <label class="f"><span>Date format <button type="button" class="help-q" data-help="prefs_dateformat" aria-label="Help">?</button></span><select id="set-datefmt"><option>YYYY-MM-DD</option><option>DD/MM/YYYY</option><option>MM/DD/YYYY</option></select></label>
           <label class="f"><span>Time format <button type="button" class="help-q" data-help="prefs_timeformat" aria-label="Help">?</button></span><select id="set-timefmt"><option value="%d:%02d:%02d">H:MM:SS</option><option value="%d:%02d">H:MM</option></select></label>
           <label class="f"><span>Hours worked per day <button type="button" class="help-q" data-help="prefs_showtime_hours_per_day" aria-label="Help">?</button></span><input id="set-hpd" type="number" step="0.01" min="0.5" max="23.5"></label>
@@ -273,6 +273,10 @@
           <label class="f"><span>Weekly bookings start <button type="button" class="help-q" data-help="prefs_timebook_startlastweek" aria-label="Help">?</button></span><select id="set-lastweek"><option value="1">Last week</option><option value="0">This week</option></select></label>
           <label class="f"><span>Number of “today” actions <button type="button" class="help-q" data-help="editprefs_num_today_actions" aria-label="Help">?</button></span><input id="set-nta" type="number" min="0" max="20"></label>
           <label class="f"><span>Language (help text) <button type="button" class="help-q" data-help="prefs_language" aria-label="Help">?</button></span><select id="set-language"></select></label>
+          <h3 class="wide" style="margin:8px 0 0">Rates <button type="button" class="help-q" data-help="prefs_rates" aria-label="Help">?</button></h3>
+          <label class="f"><span>Hourly rate</span><input id="set-rate" type="number" step="0.01" min="0" placeholder="not set"></label>
+          <label class="f"><span>Overtime multiplier</span><input id="set-otmult" type="number" step="0.05" min="0.05" max="10" placeholder="1.5"></label>
+          <label class="f"><span>Currency</span><input id="set-currency" maxlength="8" placeholder="e.g. € or CHF"></label>
           <label class="f wide"><span>Activities (one per line)</span><textarea id="set-activities" rows="10" class="mono"></textarea></label>
         </div>
         <div class="row end" style="margin-top:12px"><button class="b primary" id="set-save">Save settings</button></div>

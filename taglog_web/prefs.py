@@ -45,6 +45,9 @@ DEFAULTS: Dict[str, object] = {
     "num_today_actions": "3",
     "language": "en",
     "id_prefix": "",
+    "hourly_rate": "",
+    "overtime_multiplier": "1.5",
+    "rate_currency": "",
 }
 
 # Settings the web UI is allowed to change.
@@ -52,7 +55,13 @@ EDITABLE = [
     "rootdir", "activitiesfilename", "dateformat_view", "currentTimeFormat",
     "showtime_hours_per_day", "showtime_spreadoverheads",
     "timebook_startlastweek", "num_today_actions", "language",
+    "hourly_rate", "overtime_multiplier", "rate_currency",
 ]
+
+# Settings that only this version uses. They are written below the
+# "automatically saved" marker, because the original taglog rewrites the part
+# above the marker with just the settings it knows, and keeps the part below.
+USER_SECTION = {"hourly_rate", "overtime_multiplier", "rate_currency"}
 
 
 class TclParseError(Exception):
@@ -370,6 +379,27 @@ class Prefs:
         return v if re.fullmatch(r"[a-z]{2}", v) else "en"
 
     @property
+    def hourly_rate(self) -> float:
+        """Hourly rate, or 0 when not set (amounts are then not shown)."""
+        try:
+            v = float(str(self.values.get("hourly_rate") or "0").replace(",", "."))
+            return v if v > 0 else 0.0
+        except ValueError:
+            return 0.0
+
+    @property
+    def overtime_multiplier(self) -> float:
+        try:
+            v = float(str(self.values.get("overtime_multiplier") or "1.5").replace(",", "."))
+            return v if v > 0 else 1.5
+        except ValueError:
+            return 1.5
+
+    @property
+    def currency(self) -> str:
+        return str(self.values.get("rate_currency") or "").strip()
+
+    @property
     def spread_overheads(self) -> str:
         v = str(self.values.get("showtime_spreadoverheads") or "byweek")
         if v == "0":
@@ -407,6 +437,11 @@ class Prefs:
             "timebook_startlastweek": "1" if self.start_last_week else "0",
             "num_today_actions": str(self.num_today_actions),
             "language": self.language,
+            "hourly_rate": str(self.values.get("hourly_rate") or ""),
+            "overtime_multiplier": str(self.values.get("overtime_multiplier") or "1.5"),
+            "rate_currency": self.currency,
+            "rates": {"hourly": self.hourly_rate, "overtime_multiplier": self.overtime_multiplier,
+                      "currency": self.currency},
             "book_by": self.book_by,
             "duration_format": self.duration_format,
             "activities": self.activities,
@@ -438,6 +473,26 @@ class Prefs:
             nta = int(changes["num_today_actions"])
             if not 0 <= nta <= 20:
                 raise ValueError("Number of today actions must be 0-20")
+        for key in ("hourly_rate", "overtime_multiplier"):
+            if key in changes:
+                v = changes[key].strip().replace(",", ".")
+                if v == "" and key == "hourly_rate":
+                    changes[key] = ""
+                    continue
+                try:
+                    num = float(v)
+                except ValueError:
+                    raise ValueError("Rates must be numbers, e.g. 45 or 45.50")
+                if key == "hourly_rate" and not 0 <= num < 1_000_000:
+                    raise ValueError("Hourly rate must be between 0 and 1,000,000")
+                if key == "overtime_multiplier" and not 0 < num <= 10:
+                    raise ValueError("Overtime multiplier must be greater than 0 and at most 10")
+                changes[key] = f"{num:g}"
+        if "rate_currency" in changes:
+            cur = changes["rate_currency"].strip()
+            if len(cur) > 8 or "\n" in cur:
+                raise ValueError("Currency must be at most 8 characters, e.g. € or CHF")
+            changes["rate_currency"] = cur
         if "dateformat_view" in changes:
             changes["dateformat_tcl"] = {
                 "DD/MM/YYYY": "%d/%m/%Y", "MM/DD/YYYY": "%m/%d/%Y"}.get(
@@ -469,18 +524,34 @@ class Prefs:
             auto, rest = [HEADER], [MARKER] + lines
         else:
             auto, rest = lines[:marker_idx], lines[marker_idx:]
-        remaining = dict(changed)
-        new_auto = []
-        for line in auto:
-            m = re.match(r"^\s*set\s+([A-Za-z0-9_]+)\s", line)
-            if m and m.group(1) in remaining:
-                name = m.group(1)
-                new_auto.append(f"set {name} {tcl_quote(remaining.pop(name))}")
+        # Replace every existing "set name ..." line, wherever it is: Tcl uses
+        # the last one, so a line below the marker would win over one above.
+        found = set()
+
+        def replace(block: List[str]) -> List[str]:
+            out_lines = []
+            for line in block:
+                m = re.match(r"^\s*set\s+([A-Za-z0-9_]+)(\s|$)", line)
+                if m and m.group(1) in changed:
+                    name = m.group(1)
+                    found.add(name)
+                    out_lines.append(f"set {name} {tcl_quote(changed[name])}")
+                else:
+                    out_lines.append(line)
+            return out_lines
+
+        new_auto, new_rest = replace(auto), replace(rest)
+        for name, value in changed.items():
+            if name in found:
+                continue
+            line = f"set {name} {tcl_quote(value)}"
+            if name in USER_SECTION:
+                while new_rest and new_rest[-1] == "":
+                    new_rest.pop()
+                new_rest.append(line)
             else:
                 new_auto.append(line)
-        for name, value in remaining.items():
-            new_auto.append(f"set {name} {tcl_quote(value)}")
-        out = "\n".join(new_auto + rest)
+        out = "\n".join(new_auto + new_rest)
         if not out.endswith("\n"):
             out += "\n"
         tmp = path + ".tmp-taglog-web"
