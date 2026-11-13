@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 
 from . import tagfile as tf
 from .store import Store, entry_to_dict
-from .timeutil import entry_duration, format_duration, parse_date, parse_datetime
+from .timeutil import entry_duration, format_duration, parse_date, parse_datetime, parse_expected_time
 
 
 def _entries(store: Store, d: dt.date) -> List[tf.Entry]:
@@ -289,7 +289,18 @@ def project_total(store: Store, project: str, start: Optional[dt.date],
         "activities": [{"activity": k, "seconds": v}
                        for k, v in sorted(acts.items(), key=lambda kv: -kv[1])],
         "expected_time": p.get("expected_time", ""),
+        **_budget(total, str(p.get("expected_time", "") or "")),
     }
+
+
+def _budget(actual: int, expected_text: str) -> Dict[str, object]:
+    """Expected time vs actual: remaining seconds (negative when over)."""
+    expected = parse_expected_time(expected_text)
+    if expected is None:
+        return {"expected_seconds": None, "remaining": None, "over_budget": False,
+                "expected_unreadable": bool(expected_text.strip())}
+    return {"expected_seconds": expected, "remaining": expected - actual,
+            "over_budget": actual > expected, "expected_unreadable": False}
 
 
 # ---------------------------------------------------------------------------

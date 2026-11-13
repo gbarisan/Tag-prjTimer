@@ -469,3 +469,14 @@ the "automatically saved" line in your preferences file, where the original
 taglog leaves them alone.
 END_D
 End: 
+Id: project_expectedtime
+Title: Project expected time
+Description:: END_D
+Enter the total time you expect to spend on this project over its lifetime,
+in hours (for example 40, or 40.5) or in hours and minutes (for example 40:30).
+
+Reports, Project total compares the time actually logged on the project with
+this expected time and shows the time remaining. When the actual time is more
+than the expected time it is shown in red and marked "over budget".
+END_D
+End: 

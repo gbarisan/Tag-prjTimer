@@ -287,6 +287,26 @@ class TestReports(Base):
         self.assertEqual(t["total"], 105 * 60)
         self.assertEqual(t["days_with_entries"], 1)
 
+    def test_project_budget(self):
+        from taglog_web.timeutil import parse_expected_time
+        self.assertEqual(parse_expected_time("40"), 40 * 3600)
+        self.assertEqual(parse_expected_time("2,5"), 9000)
+        self.assertEqual(parse_expected_time("1:30"), 5400)
+        self.assertIsNone(parse_expected_time("soon"))
+        d = dt.date(2026, 11, 9)
+        self.store.save_project({"name": "A", "expected_time": "2:00"})
+        self.store.save_project({"name": "B", "expected_time": "lots"})
+        self.add(d, "9:00", "10:30", "A")
+        t = reports.project_total(self.store, "A", d, d)
+        self.assertEqual((t["expected_seconds"], t["remaining"], t["over_budget"]), (7200, 1800, False))
+        self.add(d, "11:00", "12:00", "A")
+        t = reports.project_total(self.store, "A", d, d)
+        self.assertEqual((t["remaining"], t["over_budget"]), (-1800, True))
+        t = reports.project_total(self.store, "B", d, d)
+        self.assertIsNone(t["expected_seconds"])
+        self.assertTrue(t["expected_unreadable"])
+        self.assertFalse(t["over_budget"])
+
     def test_search(self):
         d = dt.date(2026, 11, 9)
         self.add(d, "9:00", "10:00", "A", "email")

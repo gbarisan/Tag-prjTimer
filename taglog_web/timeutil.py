@@ -139,3 +139,22 @@ def date_range(start: _dt.date, end: _dt.date):
     while d <= end:
         yield d
         d += _dt.timedelta(days=1)
+
+
+def parse_expected_time(value: str) -> Optional[int]:
+    """Seconds for a project's Expected time, or None if it cannot be read.
+
+    The original help describes it both as "hours" and as "hours and
+    minutes", so accept: "40" (hours), "40.5" / "40,5" (decimal hours),
+    "40:30" (h:mm) and "40:30:00" (h:mm:ss).
+    """
+    v = (value or "").strip()
+    if not v:
+        return None
+    m = re.fullmatch(r"(\d+)(?:[.,](\d+))?", v)
+    if m:
+        return int(round(float(f"{m.group(1)}.{m.group(2) or 0}") * 3600))
+    m = re.fullmatch(r"(\d+):([0-5]?\d)(?::([0-5]?\d))?", v)
+    if m:
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3) or 0)
+    return None

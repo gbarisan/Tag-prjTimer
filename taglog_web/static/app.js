@@ -815,7 +815,7 @@ function projectDialog(p) {
   const inp = {
     name: el("input", { value: p.name }), code: el("input", { value: p.code, class: "mono" }),
     start: el("input", { type: "date", value: p.start }), end: el("input", { type: "date", value: p.end }),
-    expected_time: el("input", { value: p.expected_time, placeholder: "h:mm", class: "mono" }),
+    expected_time: el("input", { value: p.expected_time, placeholder: "hours, e.g. 40 or 40:30", class: "mono" }),
   };
   const chk = {};
   for (const f of ["active", "breaks", "overheads", "immutable"]) chk[f] = el("input", { type: "checkbox", checked: !!p[f] });
@@ -918,16 +918,38 @@ async function loadActivityReport() {
 async function loadProjectTotal() {
   const q = new URLSearchParams({ project: $("#pt-project").value, from: $("#pt-from").value, to: $("#pt-to").value });
   const d = await api("GET", "/api/reports/project-total?" + q);
+  const over = !!d.over_budget;
+  const proj = state.projects.find(x => x.name === d.project);
+  const partial = proj && ((q.get("from") && q.get("from") !== (proj.start || "")) || (q.get("to") && q.get("to") !== (proj.end || "")));
+  const stat = (label, value, cls, extra) => el("div", { class: "stat" },
+    el("div", { class: "stat-label", text: label }), el("div", { class: "stat-value" + (cls ? " " + cls : ""), text: value }), extra || null);
+  let expectedTile, remainingTile;
+  if (d.expected_seconds === null || d.expected_seconds === undefined) {
+    const hint = d.expected_unreadable ? `“${d.expected_time}” is not a time taglog can read (use hours, e.g. 40 or 40.5, or h:mm, e.g. 40:30)`
+      : "No expected time set for this project";
+    expectedTile = stat("Expected", "—", "", el("div", { class: "muted small" }, hint, " — ",
+      el("button", { class: "link", type: "button", text: "set it in Projects", onclick: () => showView("projects") })));
+    remainingTile = stat("Remaining", "—");
+  } else {
+    expectedTile = stat("Expected", fmtHM(d.expected_seconds), "", el("div", { class: "muted small", text: `${fmtDur(d.expected_seconds, "hours")} hours` }));
+    remainingTile = over
+      ? stat("Over by", fmtHM(-d.remaining), "over", el("div", { class: "muted small", text: `${(100 * d.total / d.expected_seconds).toFixed(0)}% of expected time used` }))
+      : stat("Remaining", fmtHM(d.remaining), "", el("div", { class: "muted small", text: d.expected_seconds ? `${(100 * d.total / d.expected_seconds).toFixed(0)}% of expected time used` : "" }));
+  }
+  const actualTile = stat("Actual", fmtHM(d.total), over ? "over" : "",
+    el("div", { class: "muted small", text: `${fmtDur(d.total, "hours")} hours · ${fmtDur(d.total, "days")} days` }));
   $("#pt-out").replaceChildren(el("div", { class: "card" },
-    el("h2", { text: `Total time for ${d.project}: ${fmtHM(d.total)} (${fmtDur(d.total, "days")} days, ${fmtDur(d.total, "hours")} hours)` }),
+    el("div", { class: "row" }, el("h2", { style: "margin:0", text: `Total time for ${d.project}` }),
+      over ? el("span", { class: "pill danger", text: "over budget" }) : null),
+    el("div", { class: "stats" }, actualTile, expectedTile, remainingTile),
+    partial ? el("p", { class: "muted small", text: "Actual time is for the selected dates only, not the whole project." }) : null,
     d.amount !== null && d.amount !== undefined ? el("p", {}, el("b", { text: `Amount: ${fmtMoney(d.amount, d.currency)}` }),
       d.breaks ? " (Breaks project: not charged)" : (d.overtime ? ` — includes ${fmtHM(d.overtime)} of overtime` : "")) : null,
     el("p", { class: "muted", text: `Examined ${d.files_examined} day files and found entries in ${d.days_with_entries} of them.` +
-      (d.first_date ? ` First date ${fmtDate(d.first_date)}, last date ${fmtDate(d.last_date)}.` : "") +
-      (d.expected_time ? ` Expected time: ${d.expected_time}.` : "") }),
+      (d.first_date ? ` First date ${fmtDate(d.first_date)}, last date ${fmtDate(d.last_date)}.` : "") }),
     el("table", { class: "t" }, el("thead", {}, el("tr", {}, el("th", { text: "Activity" }), el("th", { class: "num", text: "Total time" }))),
       el("tbody", {}, ...d.activities.map(r => el("tr", {}, el("td", { text: r.activity }), el("td", { class: "num", text: fmtHM(r.seconds) }))),
-        el("tr", { class: "total" }, el("td", { text: "Total" }), el("td", { class: "num", text: fmtHM(d.total) }))))));
+        el("tr", { class: "total" }, el("td", { text: "Total" }), el("td", { class: "num" + (over ? " over" : ""), text: fmtHM(d.total) }))))));
 }
 async function loadProgress() {
   const q = new URLSearchParams({ project: $("#pp-project").value, from: $("#pp-from").value, to: $("#pp-to").value });
