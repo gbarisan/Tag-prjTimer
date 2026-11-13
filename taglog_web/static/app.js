@@ -341,17 +341,33 @@ function renderProjectTimes(data) {
   const pt = data.project_times;
   const cur = data.session.project || "unknown";
   const rows = pt.rows.map(r => {
+    const over = !!r.over_budget;
+    const hasExp = r.expected_seconds !== null && r.expected_seconds !== undefined;
     const tr = el("tr", { class: "click" + (r.project === cur && data.session.running ? " current-row" : ""),
       title: `Start a new entry on ${r.project}` },
       el("td", {}, r.project === "unknown" ? el("i", { class: "muted", text: "unknown" }) : r.project,
-        r.breaks ? el("span", { class: "pill grey", style: "margin-left:6px", text: "break" }) : null),
-      el("td", { class: "num", text: fmtHM(r.seconds) }));
+        r.breaks ? el("span", { class: "pill grey", style: "margin-left:6px", text: "break" }) : null,
+        over ? el("span", { class: "pill danger", style: "margin-left:6px", text: "over budget" }) : null),
+      el("td", { class: "num" + (over ? " over" : ""), text: r.total_booked === null ? "" : fmtHM(r.total_booked) }),
+      el("td", { class: "num", text: fmtHM(r.seconds) }),
+      el("td", { class: "num muted", text: hasExp ? fmtHM(r.expected_seconds) : "—",
+        title: r.expected_unreadable ? "The expected time on this project cannot be read" : "" }),
+      el("td", { class: "num" + (over ? " over" : ""), text: !hasExp ? "—" : (over ? "−" + fmtHM(-r.remaining) : fmtHM(r.remaining)) }));
     tr.addEventListener("click", () => doNext("", r.project === "unknown" ? "" : r.project));
     return tr;
   });
-  rows.push(el("tr", { class: "total" }, el("td", { text: "Total" }), el("td", { class: "num", text: fmtHM(pt.total) })));
-  rows.push(el("tr", {}, el("td", { class: "muted", text: "Total (non breaks)" }), el("td", { class: "num", text: fmtHM(pt.total_nonbreaks) })));
-  t.replaceChildren(el("tbody", {}, ...rows));
+  const blank = () => el("td", {});
+  rows.push(el("tr", { class: "total" }, el("td", { text: "Booked today" }), blank(),
+    el("td", { class: "num", text: fmtHM(pt.total) }), blank(), blank()));
+  rows.push(el("tr", {}, el("td", { class: "muted", text: "Booked today (non breaks)" }), blank(),
+    el("td", { class: "num", text: fmtHM(pt.total_nonbreaks) }), blank(), blank()));
+  t.replaceChildren(
+    el("thead", {}, el("tr", {}, el("th", { text: "Project" }),
+      el("th", { class: "num", text: "Total booked", title: "All time logged on the project since its start date" }),
+      el("th", { class: "num", text: "Today" }),
+      el("th", { class: "num", text: "Expected" }),
+      el("th", { class: "num", text: "Remaining", title: "Expected minus total booked" }))),
+    el("tbody", {}, ...rows));
 }
 
 function renderTodayActions(data) {

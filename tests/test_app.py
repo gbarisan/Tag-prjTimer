@@ -307,6 +307,33 @@ class TestReports(Base):
         self.assertTrue(t["expected_unreadable"])
         self.assertFalse(t["over_budget"])
 
+    def test_day_project_times(self):
+        st = self.store
+        st.save_project({"name": "A", "active": True, "start": "2026-11-02", "expected_time": "3"})
+        st.save_project({"name": "Lunch", "breaks": True, "active": True})
+        st.save_project({"name": "Idle", "active": True})
+        self.add(dt.date(2026, 11, 1), "9:00", "10:00", "A")   # before project start: ignored
+        self.add(dt.date(2026, 11, 5), "9:00", "11:00", "A")
+        today = dt.date(2026, 11, 9)
+        self.add(today, "9:00", "10:00", "A")
+        self.add(today, "12:00", "12:30", "Lunch")
+        r = reports.day_project_times(st, today, "A", current_elapsed=1800)
+        rows = {x["project"]: x for x in r["rows"]}
+        a = rows["A"]
+        self.assertEqual(a["seconds"], 5400)                  # today incl. running entry
+        self.assertEqual(a["total_booked"], 3 * 3600 + 1800)  # 2h + 1h + 0:30
+        self.assertEqual(a["expected_seconds"], 3 * 3600)
+        self.assertEqual(a["remaining"], -1800)
+        self.assertTrue(a["over_budget"])
+        self.assertIsNone(rows["Lunch"]["expected_seconds"])
+        self.assertIsNone(rows["Idle"]["expected_seconds"])
+        self.assertEqual(r["total"], 5400 + 1800)
+        self.assertEqual(r["total_nonbreaks"], 5400)
+        # cache is refreshed when the file changes
+        self.add(dt.date(2026, 11, 5), "14:00", "15:00", "A")
+        r = reports.day_project_times(st, today, "A", current_elapsed=0)
+        self.assertEqual({x["project"]: x for x in r["rows"]}["A"]["total_booked"], 4 * 3600)
+
     def test_search(self):
         d = dt.date(2026, 11, 9)
         self.add(d, "9:00", "10:00", "A", "email")

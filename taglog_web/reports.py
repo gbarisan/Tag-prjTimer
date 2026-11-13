@@ -5,7 +5,9 @@ from __future__ import annotations
 import csv
 import datetime as dt
 import io
-from typing import Dict, List, Optional
+import os
+import threading
+from typing import Dict, List, Optional, Tuple
 
 from . import tagfile as tf
 from .store import Store, entry_to_dict
@@ -35,23 +37,74 @@ def money(weighted_secs: float, hourly_rate: float) -> float:
 # Today's project times (doShowProjects / fillpreventries)
 # ---------------------------------------------------------------------------
 
+# Per-day totals by project, cached by file path and modification time so
+# that the all-time totals on the Today page stay fast with years of logs.
+_DAY_TOTALS_CACHE: Dict[str, Tuple[int, int, Dict[str, int]]] = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def day_totals_by_project(store: Store, d: dt.date) -> Dict[str, int]:
+    path = store.log_path(d)
+    try:
+        st = os.stat(path)
+    except OSError:
+        return {}
+    key = (st.st_mtime_ns, st.st_size)
+    with _CACHE_LOCK:
+        hit = _DAY_TOTALS_CACHE.get(path)
+        if hit and hit[:2] == key:
+            return hit[2]
+    totals: Dict[str, int] = {}
+    for e in _entries(store, d):
+        p = tf.entry_val(e, "Project") or "unknown"
+        totals[p] = totals.get(p, 0) + _dur(e)
+    with _CACHE_LOCK:
+        _DAY_TOTALS_CACHE[path] = (key[0], key[1], totals)
+    return totals
+
+
+def project_totals_to_date(store: Store, projects: List[str], until: dt.date) -> Dict[str, int]:
+    """All time logged on each project from its StartDate (if any) to `until`."""
+    pmap = store.project_map()
+    starts = {p: parse_date(str(pmap.get(p, {}).get("start") or "")) for p in projects}
+    out = {p: 0 for p in projects}
+    for d in store.log_files_between(None, until):
+        day = day_totals_by_project(store, d)
+        for p in projects:
+            if p in day and (starts[p] is None or d >= starts[p]):
+                out[p] += day[p]
+    return out
+
+
 def day_project_times(store: Store, d: dt.date, current_project: str = "",
                       current_elapsed: int = 0) -> Dict[str, object]:
+    """Project times window: today's time, all-time total, expected and
+    remaining time for active projects and for projects booked today."""
     pmap = store.project_map()
     times: Dict[str, int] = {}
     for name in store.open_project_names():
         if pmap.get(name, {}).get("active"):
             times[name] = 0
-    for e in _entries(store, d):
-        p = tf.entry_val(e, "Project") or "unknown"
-        times[p] = times.get(p, 0) + _dur(e)
+    for p, secs in day_totals_by_project(store, d).items():
+        times[p] = times.get(p, 0) + secs
     if current_elapsed:
         p = current_project or "unknown"
         times[p] = times.get(p, 0) + current_elapsed
     total = sum(times.values())
     nonbreaks = sum(v for k, v in times.items() if not pmap.get(k, {}).get("breaks"))
-    rows = [{"project": k, "seconds": v, "breaks": bool(pmap.get(k, {}).get("breaks"))}
-            for k, v in sorted(times.items(), key=lambda kv: kv[0].lower())]
+    to_date = project_totals_to_date(store, [p for p in times if p != "unknown"], d)
+    rows = []
+    for k, v in sorted(times.items(), key=lambda kv: kv[0].lower()):
+        info = pmap.get(k, {})
+        booked = to_date.get(k, 0) + (current_elapsed if (current_project or "unknown") == k else 0)
+        row = {"project": k, "seconds": v, "breaks": bool(info.get("breaks")),
+               "total_booked": booked if k != "unknown" else None}
+        if k != "unknown" and not info.get("breaks"):
+            row.update(_budget(booked, str(info.get("expected_time", "") or "")))
+        else:
+            row.update({"expected_seconds": None, "remaining": None, "over_budget": False,
+                        "expected_unreadable": False})
+        rows.append(row)
     return {"rows": rows, "total": total, "total_nonbreaks": nonbreaks}
 
 

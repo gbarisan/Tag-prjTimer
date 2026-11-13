@@ -264,17 +264,24 @@ End:
 Id: viewproject
 Title: Project times today
 Description:: END_D
-This card shows the cumulative time for each project you have booked to
-today, including the entry you are working on now. Projects marked as Active
-are always listed, even before you have booked any time to them.
+This card lists the projects marked as Active, and any project you have
+booked time to today. For each project it shows:
 
-It also shows the total time for all projects and the total time for all
-projects which are not labelled as breaks.
+Total booked - all the time logged on the project since its start date,
+including the entry you are working on now.
+Today - the time booked to the project today.
+Expected - the project's Expected time (set on the Projects page).
+Remaining - the expected time minus the total booked. When the total booked
+is more than the expected time it is shown in red as a negative value, and
+the project is marked "over budget".
+
+At the bottom, Booked today is the total of all the time booked today, and
+Booked today (non breaks) leaves out projects labelled as breaks.
 
 You can switch to a different project by clicking it: the current entry is
 written to the log and a new one starts on that project.
 END_D
-End:
+End: 
 Id: summarybox
 Title: Day summary
 Description:: END_D
