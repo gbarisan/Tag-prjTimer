@@ -75,7 +75,7 @@ main { flex: 1; min-width: 0; padding: 22px 26px 60px; max-width: 1280px; }
 }
 @media (max-width: 720px) {
   .app { flex-direction: column; }
-  nav.side { width: auto; height: auto; position: static; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px; padding: 10px; border-right: 0; border-bottom: 1px solid var(--border); }
+  nav.side { flex: none; width: auto; height: auto; position: static; display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 4px; padding: 10px; border-right: 0; border-bottom: 1px solid var(--border); }
   nav.side .brand, nav.side .clock { display: none; }
   nav.side button { width: auto; }
   main { padding: 14px 16px 60px; }
@@ -228,3 +228,45 @@ table.t.compact td.num, table.t.compact th.num { font-size: 12px; }
 .grid2 > *, .help-layout > * { min-width: 0; }
 .pill { white-space: nowrap; }
 .help-q:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Gantt chart */
+:root { --gt-good: #0ca30c; --gt-critical: #d03b3b; }
+.gt-wrap { position: relative; overflow-x: auto; margin-top: 8px; }
+.gt-svg { display: block; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.gt-grid { stroke: var(--border); stroke-width: 1; shape-rendering: crispEdges; }
+.gt-grid-month { stroke: var(--muted); stroke-opacity: .35; }
+.gt-axis { fill: var(--muted); font-size: 11px; }
+.gt-month { font-weight: 600; }
+.gt-band { fill: var(--panel-2); }
+.gt-label { fill: var(--text); font-size: 12.5px; }
+.gt-sub { fill: var(--muted); font-size: 10.5px; }
+.gt-sub-late { fill: var(--gt-critical); font-weight: 600; }
+.gt-plan { fill: var(--accent); fill-opacity: .2; }
+.gt-open { fill: var(--accent); }
+.gt-done { fill: var(--gt-good); }
+.gt-late { fill: var(--gt-critical); }
+.gt-aborted { fill: var(--muted); fill-opacity: .7; }
+.gt-ring { stroke: var(--panel); stroke-width: 2; }
+.gt-hit { fill: transparent; cursor: pointer; }
+.gt-row:hover .gt-band, .gt-row:focus .gt-band { fill: var(--accent-soft); }
+.gt-row:hover .gt-hit, .gt-row:focus .gt-hit { fill: var(--accent-soft); fill-opacity: .35; }
+.gt-row:focus { outline: none; }
+.gt-row:focus .gt-label { text-decoration: underline; }
+.gt-link { fill: none; stroke: var(--muted); stroke-width: 1.5; pointer-events: stroke; }
+.gt-arrowhead { fill: var(--muted); }
+.gt-today { stroke: var(--text); stroke-opacity: .55; stroke-width: 1.5; }
+.gt-today-label { fill: var(--text); font-weight: 600; }
+.gt-milestone { fill: var(--text); stroke: var(--panel); stroke-width: 2; }
+.gt-milestone-line { stroke: var(--text); stroke-opacity: .3; stroke-width: 1; }
+.gt-tip { position: absolute; z-index: 5; min-width: 220px; max-width: 280px; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.5;
+  box-shadow: 0 6px 20px rgba(0,0,0,.18); pointer-events: none; }
+.gt-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.gt-leg { display: inline-flex; align-items: center; gap: 6px; }
+.gt-sw { display: inline-block; width: 18px; height: 6px; border-radius: 3px; }
+.gt-sw.gt-open { background: var(--accent); } .gt-sw.gt-done { background: var(--gt-good); }
+.gt-sw.gt-late { background: var(--gt-critical); } .gt-sw.gt-aborted { background: var(--muted); opacity: .7; }
+.gt-plan-sw { height: 12px; background: var(--accent); opacity: .2; border-radius: 4px; }
+.gt-sw-line { display: inline-block; width: 2px; height: 14px; background: var(--text); opacity: .55; }
+.gt-sw-diamond { display: inline-block; width: 8px; height: 8px; background: var(--text); transform: rotate(45deg); }
+.gt-sw-arrow { color: var(--muted); font-weight: 700; }

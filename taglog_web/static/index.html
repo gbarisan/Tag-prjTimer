@@ -198,6 +198,7 @@
         <button data-sub="progress">Project progress</button>
         <button data-sub="review">Active actions review</button>
         <button data-sub="interrupts">Interruptions</button>
+        <button data-sub="gantt">Gantt</button>
       </div>
       <div class="sub" data-sub="timebook">
         <div class="card">
@@ -247,6 +248,20 @@
           <div class="row end"><span class="help-q" role="button" tabindex="0" data-help="hint_problem_actions_overrun" aria-label="Help">?</span> <button class="b" id="rv-go">Refresh</button></div>
         </div>
         <div id="rv-out"></div>
+      </div>
+      <div class="sub hidden" data-sub="gantt">
+        <div class="card">
+          <div class="fields">
+            <label class="f"><span>Project</span><input id="gt-project" list="dl-allprojects"></label>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <label class="check"><input type="checkbox" id="gt-aborted"> Include aborted actions</label>
+            <label class="check"><input type="checkbox" id="gt-table"> Show as table</label>
+            <span class="spacer"></span>
+            <span class="help-q" role="button" tabindex="0" data-help="gantt" aria-label="Help">?</span> <button class="b primary" id="gt-go">Show</button>
+          </div>
+        </div>
+        <div id="gt-out"></div>
       </div>
       <div class="sub hidden" data-sub="interrupts">
         <div class="card"><div class="fields">

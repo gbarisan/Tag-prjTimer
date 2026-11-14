@@ -493,3 +493,137 @@ def search_logs(store: Store, start: Optional[dt.date], end: Optional[dt.date],
         if rows or (summary and not (project or text or activity or contact or action)):
             out.append({"date": d.isoformat(), "summary": summary, "entries": rows})
     return out
+
+
+# ---------------------------------------------------------------------------
+# Gantt chart data for one project
+# ---------------------------------------------------------------------------
+
+OPEN_STATES = ("Active", "Blocked", "Delegated")
+
+
+def _d(value: str) -> Optional[dt.date]:
+    return parse_date(value) if value else None
+
+
+def gantt(store: Store, project: str, include_aborted: bool = False,
+          today: Optional[dt.date] = None) -> Dict[str, object]:
+    """Rows for a project Gantt chart.
+
+    planned: Expected-start-date .. Expected-completed-date. If only the end
+             is set, the plan is taken to start on the action's Date (when it
+             was created); if only the start is set, it is a one-day plan.
+    actual:  Active-date .. Completed-date / Aborted-date, or .. today while
+             the action is still open (Active, Blocked or Delegated).
+    late:    finished after the planned end, or not yet finished (and not
+             aborted) although the planned end has passed.
+    Actions with neither planned nor actual dates are listed as unscheduled.
+    """
+    today = today or dt.date.today()
+    acts = [e for e in store.actions() if tf.entry_val(e, "Project") == project]
+    if not include_aborted:
+        acts = [e for e in acts if tf.entry_val(e, "Status") != "Aborted"]
+    ids = {tf.entry_val(e, "Id") for e in acts}
+
+    rows, unscheduled = [], []
+    for e in acts:
+        aid = tf.entry_val(e, "Id")
+        status = tf.entry_val(e, "Status")
+        p_start = _d(tf.entry_val(e, "Expected-start-date"))
+        p_end = _d(tf.entry_val(e, "Expected-completed-date"))
+        p_start_from_created = False
+        if p_end and not p_start:
+            created = _d(tf.entry_val(e, "Date"))
+            if created and created <= p_end:
+                p_start, p_start_from_created = created, True
+            else:
+                p_start = p_end
+        if p_start and not p_end:
+            p_end = p_start
+        if p_start and p_end and p_end < p_start:
+            p_start, p_end = p_end, p_start
+        a_start = _d(tf.entry_val(e, "Active-date"))
+        if a_start is None and status == "Active":
+            # Created directly as Active: like the original's Active actions
+            # review, take the creation date as the start.
+            a_start = _d(tf.entry_val(e, "Date"))
+        finished = _d(tf.entry_val(e, "Completed-date")) if status == "Completed" else (
+            _d(tf.entry_val(e, "Aborted-date")) if status == "Aborted" else None)
+        open_ = status in OPEN_STATES
+        a_end = finished or (today if open_ and a_start else None)
+        if a_start is None and finished is not None:
+            a_start = finished          # completed without ever being marked Active
+        if a_start and a_end and a_end < a_start:
+            a_end = a_start
+        # late: finished after the planned end, or not finished (and not
+        # aborted) although the planned end has passed
+        late = bool(p_end and status != "Aborted" and (
+            (finished and finished > p_end) or (not finished and today > p_end)))
+        row = {
+            "id": aid, "title": tf.entry_val(e, "Title"), "status": status,
+            "priority": tf.entry_val(e, "Priority"),
+            "subtask_of": tf.entry_val(e, "Subtask-of") if tf.entry_val(e, "Subtask-of") in ids else "",
+            "planned_start": p_start.isoformat() if p_start else None,
+            "planned_end": p_end.isoformat() if p_end else None,
+            "planned_start_from_created": p_start_from_created,
+            "actual_start": a_start.isoformat() if a_start else None,
+            "actual_end": a_end.isoformat() if a_end else None,
+            "actual_open": bool(open_ and a_start and not finished),
+            "late": late,
+            "expected_time": tf.entry_val(e, "Expected-time"),
+            "next_action": tf.entry_val(e, "Next-action") if tf.entry_val(e, "Next-action") in ids else "",
+            "precursor": tf.entry_val(e, "Precursor") if tf.entry_val(e, "Precursor") in ids else "",
+        }
+        (rows if (p_start or a_start) else unscheduled).append(row)
+
+    # Order: parents by start date, each followed by its subtasks (any depth)
+    def start_key(r):
+        return (r["planned_start"] or r["actual_start"] or "9999", r["id"])
+    by_parent: Dict[str, List[dict]] = {}
+    for r in rows:
+        by_parent.setdefault(r["subtask_of"], []).append(r)
+    ordered: List[dict] = []
+    seen = set()
+
+    def walk(parent: str, depth: int) -> None:
+        for r in sorted(by_parent.get(parent, []), key=start_key):
+            if r["id"] in seen:
+                continue
+            seen.add(r["id"])
+            r["depth"] = depth
+            ordered.append(r)
+            walk(r["id"], depth + 1)
+    walk("", 0)
+    for r in sorted(rows, key=start_key):     # parents that are unscheduled, or cycles
+        if r["id"] not in seen:
+            seen.add(r["id"])
+            r["depth"] = 1 if r["subtask_of"] else 0
+            ordered.append(r)
+            walk(r["id"], r["depth"] + 1)
+
+    links = []
+    for r in ordered:
+        if r["next_action"]:
+            links.append({"from": r["id"], "to": r["next_action"], "kind": "next"})
+        if r["precursor"]:
+            links.append({"from": r["precursor"], "to": r["id"], "kind": "precursor"})
+    shown = {r["id"] for r in ordered}
+    links = [l for l in links if l["from"] in shown and l["to"] in shown]
+    uniq = {(l["from"], l["to"]): l for l in links}
+
+    p = store.project_map().get(project, {})
+    dates = [dt.date.fromisoformat(x) for r in ordered
+             for x in (r["planned_start"], r["planned_end"], r["actual_start"], r["actual_end"]) if x]
+    for x in (p.get("start"), p.get("end")):
+        d = _d(str(x or ""))
+        if d:
+            dates.append(d)
+    dates.append(today)
+    first, last = min(dates), max(dates)
+    return {
+        "project": project, "today": today.isoformat(),
+        "project_start": str(p.get("start") or ""), "project_end": str(p.get("end") or ""),
+        "range_start": (first - dt.timedelta(days=2)).isoformat(),
+        "range_end": (last + dt.timedelta(days=2)).isoformat(),
+        "rows": ordered, "links": list(uniq.values()), "unscheduled": unscheduled,
+    }

@@ -825,6 +825,7 @@ function refreshAfterActionChange() {
   if ($("#view-actions").classList.contains("active")) loadActions();
   if ($("#view-today").classList.contains("active")) loadToday();
   if ($("#view-reports").classList.contains("active") && !$("[data-sub=review]", $("#view-reports")).classList.contains("hidden")) loadReview();
+  if ($("#view-reports").classList.contains("active") && !$("[data-sub=gantt]", $("#view-reports")).classList.contains("hidden") && state.gantt) loadGantt();
 }
 
 // ================================================================ PROJECTS
@@ -840,14 +841,16 @@ async function loadProjects() {
       el("td", { class: "mono", text: p.code }),
       el("td", { text: flag(p.active) }), el("td", { text: flag(p.breaks) }), el("td", { text: flag(p.overheads) }), el("td", { text: flag(p.immutable) }),
       el("td", { class: "mono", text: fmtDate(p.start) }), el("td", { class: "mono", text: fmtDate(p.end) }),
-      el("td", { class: "mono", text: p.expected_time }));
+      el("td", { class: "mono", text: p.expected_time }),
+      el("td", {}, el("button", { type: "button", class: "b", text: "Gantt", title: `Gantt chart for ${p.name}`,
+        onclick: ev => { ev.stopPropagation(); openGantt(p.name); } })));
     tr.addEventListener("click", () => projectDialog(p));
     tr.addEventListener("keydown", e => { if (e.key === "Enter") projectDialog(p); });
     return tr;
   });
   $("#p-table").replaceChildren(
-    el("thead", {}, el("tr", {}, ...["Name", "Code", "Active", "Breaks", "Overheads", "Immutable", "Start", "End", "Expected time"].map(h => el("th", { text: h })))),
-    el("tbody", {}, ...(rows.length ? rows : [el("tr", {}, el("td", { colspan: 9, class: "empty", text: "No projects yet. Add one to start booking time to it." }))])));
+    el("thead", {}, el("tr", {}, ...["Name", "Code", "Active", "Breaks", "Overheads", "Immutable", "Start", "End", "Expected time", ""].map(h => el("th", { text: h })))),
+    el("tbody", {}, ...(rows.length ? rows : [el("tr", {}, el("td", { colspan: 10, class: "empty", text: "No projects yet. Add one to start booking time to it." }))])));
 }
 
 function projectDialog(p) {
@@ -1118,6 +1121,229 @@ function setupSettings() {
   });
 }
 
+// ================================================================ GANTT
+const SVGNS = "http://www.w3.org/2000/svg";
+function svg(tag, attrs = {}, ...children) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v);
+  for (const c of children.flat()) if (c !== null && c !== undefined) e.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return e;
+}
+function dayDiff(a, b) { return Math.round((parseIso(b) - parseIso(a)) / 864e5); }
+
+/** Visual state of a row's actual bar; always shown with a text label too. */
+function ganttState(r) {
+  if (r.status === "Aborted") return { cls: "gt-aborted", label: "aborted" };
+  if (r.late) return { cls: "gt-late", label: r.status === "Completed" ? "finished late" : (r.actual_start ? "late" : "late, not started") };
+  if (r.status === "Completed") return { cls: "gt-done", label: "done on time" };
+  if (!r.actual_start) return { cls: "", label: "not started" };
+  return { cls: "gt-open", label: "in progress" };
+}
+function ganttRowText(r) {
+  const st = ganttState(r);
+  const plan = r.planned_start ? `planned ${fmtDate(r.planned_start)} – ${fmtDate(r.planned_end)}` +
+    (r.planned_start_from_created ? " (start = creation date)" : "") : "no planned dates";
+  const act = r.actual_start ? `actual ${fmtDate(r.actual_start)} – ${r.actual_open ? "today (open)" : fmtDate(r.actual_end)}` : "not started";
+  return { st, plan, act };
+}
+
+async function loadGantt() {
+  const project = $("#gt-project").value.trim();
+  if (!project) { toast("Choose a project", true); return; }
+  const q = new URLSearchParams({ project, aborted: $("#gt-aborted").checked ? "1" : "0" });
+  const d = await api("GET", "/api/reports/gantt?" + q);
+  state.gantt = d;
+  renderGantt();
+}
+
+function renderGantt() {
+  const d = state.gantt;
+  const out = $("#gt-out");
+  if (!d) return;
+  const card = el("div", { class: "card" }, el("h2", { text: `Gantt — ${d.project}` }));
+  if (!d.rows.length) {
+    card.append(el("div", { class: "empty", text: d.unscheduled.length
+      ? "None of this project's actions has dates yet. Give actions an Expected start / completed date to place them on the chart."
+      : "This project has no actions yet." }));
+  } else if ($("#gt-table").checked) {
+    card.append(el("div", { class: "scroll-x" }, el("table", { class: "t" },
+      el("thead", {}, el("tr", {}, ...["Action", "Status", "Planned", "Actual", ""].map(h => el("th", { text: h })))),
+      el("tbody", {}, ...d.rows.map(r => {
+        const t = ganttRowText(r);
+        return el("tr", { class: "click", onclick: () => actionDialog(r.id) },
+          el("td", { style: `padding-left:${8 + r.depth * 16}px`, text: r.title || r.id }),
+          el("td", { text: r.status }), el("td", { class: "mono", text: t.plan.replace(/^planned /, "") }),
+          el("td", { class: "mono", text: t.act.replace(/^actual /, "") }),
+          el("td", {}, r.late ? el("span", { class: "pill danger", text: t.st.label }) : t.st.label));
+      })))));
+  } else {
+    card.append(ganttLegend(d), ganttChart(d));
+  }
+  if (d.unscheduled.length) {
+    card.append(el("h3", { style: "margin-top:16px", text: "Not scheduled" }),
+      el("p", { class: "muted small", style: "margin-top:0", text: "These actions have no planned or actual dates." }),
+      el("div", { class: "row" }, ...d.unscheduled.map(r =>
+        el("button", { type: "button", class: "b", text: `${r.title || r.id} (${r.status})`, onclick: () => actionDialog(r.id) }))));
+  }
+  out.replaceChildren(card);
+}
+
+function ganttLegend(d) {
+  const sw = (cls, label, shape) => el("span", { class: "gt-leg" },
+    shape || el("span", { class: "gt-sw " + cls }), label);
+  const items = [
+    sw("gt-plan-sw", "Planned"),
+    sw("gt-open", "Actual: in progress"),
+    sw("gt-done", "Actual: done on time"),
+    sw("gt-late", "Actual: late"),
+  ];
+  if (d.rows.some(r => r.status === "Aborted")) items.push(sw("gt-aborted", "Actual: aborted"));
+  items.push(sw("", "Today", el("span", { class: "gt-sw-line" })));
+  if (d.project_start || d.project_end) items.push(sw("", "Project start / end", el("span", { class: "gt-sw-diamond" })));
+  if (d.links.length) items.push(sw("", "Next action / precursor", el("span", { class: "gt-sw-arrow", text: "→" })));
+  return el("div", { class: "gt-legend" }, ...items);
+}
+
+function ganttChart(d) {
+  const wrap = el("div", { class: "gt-wrap" });
+  const tip = el("div", { class: "gt-tip hidden", role: "tooltip" });
+  const narrow = window.innerWidth < 720;
+  const labelW = narrow ? 150 : 250, rowH = 36, headH = 46, padR = 16;
+  const days = dayDiff(d.range_start, d.range_end) + 1;
+  const avail = Math.max(320, ($("#gt-out").clientWidth || 900) - 40 - labelW - padR);
+  const dayW = Math.max(6, Math.min(36, avail / days));
+  const W = labelW + days * dayW + padR, H = headH + d.rows.length * rowH + 8;
+  const x = iso => labelW + dayDiff(d.range_start, iso) * dayW;     // start of that day
+  const xEnd = iso => x(iso) + dayW;                                 // end of that day (inclusive)
+  const root = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, class: "gt-svg", role: "img",
+    "aria-label": `Gantt chart for ${d.project}: ${d.rows.length} actions` });
+  root.append(svg("defs", {}, svg("marker", { id: "gt-arrow", viewBox: "0 0 8 8", refX: 7, refY: 4, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" },
+    svg("path", { d: "M0,0 L8,4 L0,8 z", class: "gt-arrowhead" }))));
+
+  // grid: Mondays (hairlines) and month labels
+  const grid = svg("g", {});
+  const months = svg("g", {});
+  for (let i = 0; i < days; i++) {
+    const date = new Date(parseIso(d.range_start)); date.setDate(date.getDate() + i);
+    const iso = isoDate(date), gx = x(iso);
+    if (date.getDay() === 1) {
+      grid.append(svg("line", { x1: gx, x2: gx, y1: headH - 14, y2: H, class: "gt-grid" }));
+      if (dayW * 7 >= 30) grid.append(svg("text", { x: gx + 3, y: headH - 4, class: "gt-axis" }, String(date.getDate())));
+    }
+    if (date.getDate() === 1 || i === 0) {
+      months.append(svg("text", { x: gx + 3, y: 14, class: "gt-axis gt-month" },
+        date.toLocaleDateString(undefined, { month: "short", year: date.getMonth() === 0 || i === 0 ? "numeric" : undefined })));
+      if (i > 0) grid.append(svg("line", { x1: gx, x2: gx, y1: 0, y2: H, class: "gt-grid gt-grid-month" }));
+    }
+  }
+  root.append(grid, months, svg("line", { x1: labelW, x2: W - padR, y1: headH, y2: headH, class: "gt-grid" }));
+
+  // rows
+  const rowY = {};
+  const rowsG = svg("g", {});
+  d.rows.forEach((r, i) => {
+    const y = headH + i * rowH;
+    rowY[r.id] = y;
+    const st = ganttState(r);
+    const g = svg("g", { class: "gt-row", tabindex: "0", role: "button", "aria-label": `${r.title}: ${r.status}, ${st.label}` });
+    if (i % 2) g.append(svg("rect", { x: 0, y, width: W, height: rowH, class: "gt-band" }));
+    const indent = 8 + r.depth * 14;
+    const maxChars = Math.floor((labelW - indent - 8) / 6.6);
+    const title = (r.depth ? "↳ " : "") + (r.title || r.id);
+    g.append(svg("text", { x: indent, y: y + 15, class: "gt-label" }, title.length > maxChars ? title.slice(0, maxChars - 1) + "…" : title));
+    const sub = `${r.status} · ${st.label}`, subMax = Math.floor((labelW - indent - (r.depth ? 12 : 0) - 8) / 5.6);
+    g.append(svg("text", { x: indent + (r.depth ? 12 : 0), y: y + 29, class: "gt-sub" + (r.late ? " gt-sub-late" : "") },
+      sub.length > subMax ? sub.slice(0, subMax - 1) + "…" : sub));
+    if (r.planned_start) {
+      g.append(svg("rect", { x: x(r.planned_start) + 1, y: y + 8, width: Math.max(4, xEnd(r.planned_end) - x(r.planned_start) - 2), height: 18, rx: 4, class: "gt-plan" }));
+    }
+    if (r.actual_start) {
+      const ax = x(r.actual_start) + 1, aw = Math.max(4, xEnd(r.actual_end) - x(r.actual_start) - 2);
+      g.append(svg("rect", { x: ax, y: y + 20, width: aw, height: 6, rx: 3, class: st.cls }));
+      if (r.actual_open) g.append(svg("circle", { cx: ax + aw, cy: y + 23, r: 4, class: st.cls + " gt-ring" }));
+    }
+    // generous hit target: the whole row
+    g.append(svg("rect", { x: 0, y, width: W, height: rowH, class: "gt-hit" }));
+    const show = ev => {
+      const t = ganttRowText(r);
+      tip.replaceChildren(...[el("b", { text: r.title || r.id }), el("div", { text: `${r.id} · ${r.status}` }),
+        el("div", { text: t.plan }), el("div", { text: t.act }),
+        r.late ? el("div", {}, el("span", { class: "pill danger", text: t.st.label })) : el("div", { class: "muted", text: t.st.label }),
+        r.expected_time ? el("div", { class: "muted", text: `expected time ${r.expected_time}` }) : null,
+        el("div", { class: "muted small", text: "Click to open" })].filter(Boolean));
+      tip.classList.remove("hidden");
+      const box = wrap.getBoundingClientRect();
+      const px = (ev.clientX !== undefined && ev.clientX) ? ev.clientX - box.left + wrap.scrollLeft : labelW;
+      const py = y + rowH + 4;
+      tip.style.left = Math.min(px + 12, wrap.scrollLeft + wrap.clientWidth - 280) + "px";
+      tip.style.top = py + "px";
+    };
+    g.addEventListener("mousemove", show);
+    g.addEventListener("focus", show);
+    g.addEventListener("mouseleave", () => tip.classList.add("hidden"));
+    g.addEventListener("blur", () => tip.classList.add("hidden"));
+    g.addEventListener("click", () => actionDialog(r.id));
+    g.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); actionDialog(r.id); } });
+    rowsG.append(g);
+  });
+  root.append(rowsG);
+
+  // dependency arrows: from the end of one bar to the start of the next
+  const barEnd = r => xEnd(r.actual_end && (!r.planned_end || r.actual_end > r.planned_end) ? r.actual_end : (r.planned_end || r.actual_end));
+  const barStart = r => x(r.planned_start && (!r.actual_start || r.planned_start < r.actual_start) ? r.planned_start : (r.actual_start || r.planned_start));
+  const byId = Object.fromEntries(d.rows.map(r => [r.id, r]));
+  const linksG = svg("g", { class: "gt-links" });
+  for (const l of d.links) {
+    const a = byId[l.from], b = byId[l.to];
+    const x1 = barEnd(a), y1 = rowY[a.id] + 17, x2 = barStart(b), y2 = rowY[b.id] + 17;
+    const midY = y2 > y1 ? rowY[b.id] - 2 : rowY[b.id] + rowH + 2;
+    const path = x2 - x1 >= 14
+      ? `M${x1},${y1} H${x1 + 7} V${y2} H${x2 - 1}`
+      : `M${x1},${y1} H${x1 + 7} V${midY} H${x2 - 8} V${y2} H${x2 - 1}`;
+    linksG.append(svg("path", { d: path, class: "gt-link", "marker-end": "url(#gt-arrow)" },
+      svg("title", {}, `${a.title} → ${b.title} (${l.kind === "next" ? "next action" : "precursor"})`)));
+  }
+  root.append(linksG);
+
+  // today line and project start / end markers (drawn on top)
+  if (d.today >= d.range_start && d.today <= d.range_end) {
+    const tx = x(d.today) + dayW / 2;
+    root.append(svg("line", { x1: tx, x2: tx, y1: headH - 16, y2: H, class: "gt-today" }),
+      svg("text", { x: tx + 4, y: headH - 18, class: "gt-axis gt-today-label" }, "Today"));
+  }
+  for (const [iso, label] of [[d.project_start, "Project start"], [d.project_end, "Project end"]]) {
+    if (!iso || iso < d.range_start || iso > d.range_end) continue;
+    const mx = label === "Project start" ? x(iso) : xEnd(iso);
+    root.append(svg("line", { x1: mx, x2: mx, y1: headH, y2: H, class: "gt-milestone-line" }),
+      svg("path", { d: `M${mx},${headH - 13} l5,5 l-5,5 l-5,-5 z`, class: "gt-milestone" },
+        svg("title", {}, `${label}: ${fmtDate(iso)}`)));
+  }
+  wrap.append(root, tip);
+  // start scrolled so that today is visible
+  requestAnimationFrame(() => {
+    const tx = x(d.today);
+    if (tx > wrap.clientWidth) wrap.scrollLeft = tx - wrap.clientWidth / 2;
+  });
+  return wrap;
+}
+
+function setupGantt() {
+  $("#gt-go").addEventListener("click", loadGantt);
+  $("#gt-project").addEventListener("keydown", e => { if (e.key === "Enter") loadGantt(); });
+  $("#gt-aborted").addEventListener("change", () => { if (state.gantt) loadGantt(); });
+  $("#gt-table").addEventListener("change", renderGantt);
+  let t = null;
+  window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => {
+    if (state.gantt && !$("[data-sub=gantt]", $("#view-reports")).classList.contains("hidden")) renderGantt();
+  }, 200); });
+}
+function openGantt(project) {
+  showView("reports");
+  $("#rep-tabs button[data-sub=gantt]").click();
+  $("#gt-project").value = project;
+  loadGantt();
+}
+
 // ================================================================ HELP
 const help = { ids: new Set(), index: null, lang: null, current: null, matches: null };
 
@@ -1292,6 +1518,7 @@ function boot() {
   setupReports();
   setupSettings();
   setupHelp();
+  setupGantt();
   let v = "today";
   try { v = localStorage.getItem("taglog.view") || "today"; } catch (e) { /* ignore */ }
   // Always load today's data first (prefs, lists), then switch view.

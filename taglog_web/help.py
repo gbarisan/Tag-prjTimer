@@ -86,7 +86,7 @@ _GROUP_OF = {
     "actions": "actions", "actinput": "actions",
     "projects": "projects", "addproject": "projects", "editproject": "projects",
     "project_expectedtime": "projects", "ep_enddate": "projects",
-    "reports": "reports", "editprefs": "settings",
+    "reports": "reports", "gantt": "reports", "editprefs": "settings",
 }
 
 

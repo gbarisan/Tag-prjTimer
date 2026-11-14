@@ -493,3 +493,29 @@ this expected time and shows the time remaining. When the actual time is more
 than the expected time it is shown in red and marked "over budget".
 END_D
 End: 
+Id: gantt
+Title: Gantt chart
+Description:: END_D
+The Gantt chart shows a project's actions on a calendar, one row per action.
+Open it from Reports, Gantt, or with the Gantt button on a project in the
+Projects page.
+
+The wide pale bar is the plan: from the action's Expected start date to its
+Expected completed date. If only the completed date is set, the plan is drawn
+from the date the action was created.
+
+The thin bar over it is what actually happened: from when the action became
+Active to when it was Completed (or Aborted). While the action is still open
+it runs up to today and ends in a dot. Its colour and the text under the
+action's name say how it went: in progress, done on time, finished late, or
+late (still open after its planned end).
+
+Subtasks are indented under their parent. Arrows join an action to its Next
+action, and a Precursor to the action that follows it. The vertical line marks
+today, and diamonds mark the project's own start and end dates.
+
+Hover over a row for the details, and click it to open the action and change
+its dates or state. Tick "Show as table" to see the same information as a
+table. Actions without any dates are listed under "Not scheduled".
+END_D
+End: 

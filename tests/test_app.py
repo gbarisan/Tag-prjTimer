@@ -351,6 +351,43 @@ class TestReports(Base):
         r = reports.day_project_times(st, today, "A", current_elapsed=0)
         self.assertEqual({x["project"]: x for x in r["rows"]}["A"]["total_booked"], 4 * 3600)
 
+    def test_gantt(self):
+        st = self.store
+        st.save_project({"name": "G", "start": "2026-11-01", "end": "2026-11-30"})
+        today = dt.date(2026, 11, 14)
+        def act(fields):
+            fields.setdefault("Project", "G")
+            return tf.entry_val(st.create_action(fields, now=dt.datetime(2026, 11, 2, 9, 0)), "Id")
+        a = act({"Id": "G.a", "Title": "Design", "Expected-start-date": "2026-11-02",
+                 "Expected-completed-date": "2026-11-06", "Next-action": "G.b"})
+        st.change_action_state(a, "Active", now=dt.datetime(2026, 11, 3, 9))
+        st.change_action_state(a, "Completed", now=dt.datetime(2026, 11, 9, 17))   # late
+        b = act({"Id": "G.b", "Title": "Build", "Expected-completed-date": "2026-11-20"})
+        act({"Id": "G.b1", "Title": "Build part 1", "Subtask-of": b, "Expected-start-date": "2026-11-10",
+             "Expected-completed-date": "2026-11-12", "Status": "Active"})
+        act({"Id": "G.c", "Title": "No dates"})
+        act({"Id": "G.x", "Title": "Dropped", "Status": "Aborted", "Expected-start-date": "2026-11-05"})
+        g = reports.gantt(st, "G", today=today)
+        rows = {r["id"]: r for r in g["rows"]}
+        self.assertEqual([r["id"] for r in g["rows"]], ["G.a", "G.b", "G.b1"])
+        self.assertTrue(rows["G.a"]["late"])
+        self.assertEqual((rows["G.a"]["actual_start"], rows["G.a"]["actual_end"]), ("2026-11-03", "2026-11-09"))
+        self.assertEqual(rows["G.b"]["planned_start"], "2026-11-02")    # from creation date
+        self.assertTrue(rows["G.b"]["planned_start_from_created"])
+        self.assertEqual(rows["G.b1"]["depth"], 1)
+        self.assertTrue(rows["G.b1"]["late"])                           # open, past planned end
+        # created directly as Active: actual start = creation date, open until today
+        self.assertEqual((rows["G.b1"]["actual_start"], rows["G.b1"]["actual_end"]), ("2026-11-02", "2026-11-14"))
+        self.assertTrue(rows["G.b1"]["actual_open"])
+        self.assertEqual([u["id"] for u in g["unscheduled"]], ["G.c"])
+        self.assertEqual(g["links"], [{"from": "G.a", "to": "G.b", "kind": "next"}])
+        self.assertNotIn("G.x", rows)
+        self.assertIn("G.x", {r["id"] for r in reports.gantt(st, "G", include_aborted=True, today=today)["rows"]})
+        p = act({"Id": "G.p", "Title": "Waiting", "Expected-completed-date": "2026-11-10"})   # Pending, past end
+        self.assertTrue({r["id"]: r for r in reports.gantt(st, "G", today=today)["rows"]}[p]["late"])
+        self.assertLessEqual(g["range_start"], "2026-11-01")
+        self.assertGreaterEqual(g["range_end"], "2026-11-30")
+
     def test_search(self):
         d = dt.date(2026, 11, 9)
         self.add(d, "9:00", "10:00", "A", "email")

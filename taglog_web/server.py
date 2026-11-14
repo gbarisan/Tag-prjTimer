@@ -404,6 +404,13 @@ class App:
             rep["currency"] = self.prefs.currency
             return rep
 
+        @r("GET", "/api/reports/gantt")
+        def get_rep_gantt(q, b):
+            p = q.get("project") or ""
+            if not p:
+                raise ApiError("Choose a project")
+            return reports.gantt(st, p, q.get("aborted") == "1")
+
         @r("GET", "/api/reports/interruptions")
         def get_rep_interruptions(q, b):
             return reports.interruptions(st, _date(q.get("from")), _date(q.get("to")))
