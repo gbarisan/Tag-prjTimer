@@ -193,7 +193,7 @@ kbd { font: 11px var(--mono); border: 1px solid var(--border); border-bottom-wid
   display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px;
   margin-left: 4px; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--panel);
   color: var(--muted); font: 600 11px/1 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  cursor: pointer; vertical-align: middle; text-transform: none; letter-spacing: 0;
+  cursor: pointer; vertical-align: middle; text-transform: none; letter-spacing: 0; user-select: none;
 }
 .help-q:hover { color: var(--accent); border-color: var(--accent); }
 h2 .help-q { margin-left: 6px; }
@@ -227,3 +227,4 @@ table.t.compact td.num, table.t.compact th.num { font-size: 12px; }
 /* let grid columns shrink so wide tables scroll inside their card */
 .grid2 > *, .help-layout > * { min-width: 0; }
 .pill { white-space: nowrap; }
+.help-q:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

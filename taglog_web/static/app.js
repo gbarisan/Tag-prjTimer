@@ -260,6 +260,7 @@ function renderToday(data) {
   $("#btn-abort").disabled = !s.action;
 
   $("#btn-pause").textContent = s.running ? "Pause" : "Resume";
+  $("#btn-adjust").disabled = !s.running;
   $("#btn-next").disabled = !s.running;
   $("#btn-next-menu").disabled = !s.running;
   $("#btn-pop").disabled = !s.stack_depth;
@@ -411,13 +412,15 @@ function nextMenu() {
 function adjustDialog() {
   const d = state.today;
   const s = d.session;
+  if (!s.running) { toast("Taglog is paused; press Resume first", true); return; }
   const last = d.entries[d.entries.length - 1];
   const prevStart = last ? last.StartTime : "0:00:00";
   const toSecs = t => { const p = (t || "0").split(":").map(Number); return (p[0] || 0) * 3600 + (p[1] || 0) * 60 + (p[2] || 0); };
   const curSecs = toSecs(s.start);
-  const maxMin = Math.max(0, Math.floor((curSecs - toSecs(prevStart)) / 60));
+  const room = Math.max(0, curSecs - toSecs(prevStart));          // seconds the start can move back
+  const maxMin = Math.floor(room / 60);
   const input = el("input", { class: "mono", value: s.start });
-  const slider = el("input", { type: "range", min: 0, max: maxMin, value: 0, style: "width:100%" });
+  const slider = el("input", { type: "range", min: 0, max: maxMin, value: 0, step: 1, style: "width:100%" });
   const fmtStart = secs => {
     const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), ss = secs % 60;
     return (state.prefs.currentTimeFormat === "%d:%02d") ? `${h}:${pad(m)}` : `${h}:${pad(m)}:${pad(ss)}`;
@@ -425,19 +428,41 @@ function adjustDialog() {
   const lbl = el("span", { class: "muted small", text: "0 minutes earlier" });
   slider.addEventListener("input", () => {
     input.value = fmtStart(Math.max(0, curSecs - slider.value * 60));
-    lbl.textContent = `${slider.value} minutes earlier`;
+    lbl.textContent = `${slider.value} minute${slider.value == 1 ? "" : "s"} earlier`;
   });
-  const adjPrev = el("input", { type: "checkbox", checked: !!(last && last.EndTime) });
+  const hasPrev = !!(last && last.EndTime);
+  const adjPrev = el("input", { type: "checkbox", checked: hasPrev });
+  const intro = last
+    ? `The previous entry is ${last.StartTime}–${last.EndTime || "?"}` + (last.Project ? ` (${last.Project})` : "") +
+      `. The start can move back as far as ${prevStart}, so the two entries don't overlap.`
+    : "No earlier entry today: the start can move back as far as the start of the day.";
+  const tooShort = last && maxMin < 1;
   const body = el("div", {},
-    el("p", { class: "muted", style: "margin-top:0", text: last ? `Move the start time back towards the previous entry's start (${prevStart}).` : "Move the start time back towards the start of the day." }),
-    field("New start time", input), el("div", { style: "margin:12px 0" }, slider, lbl),
-    last && last.EndTime ? el("label", { class: "check" }, adjPrev, "Also set the previous entry's end time to this") : null);
+    el("p", { class: "muted", style: "margin-top:0", text: intro }),
+    tooShort ? el("div", { class: "banner small" },
+      el("b", { text: "The slider can't move: " }),
+      `the previous entry started only ${room} second${room === 1 ? "" : "s"} before this one. ` +
+      "To go further back, edit or delete that entry first. ",
+      el("button", { type: "button", class: "b", text: "Edit previous entry", onclick: () => {
+        $("#dlg").close(); setTimeout(() => editEntryDialog(d.date, last, loadToday), 0);
+      } })) : null,
+    field("New start time", input),
+    tooShort ? null : el("div", { style: "margin:12px 0" }, slider, lbl),
+    hasPrev ? el("label", { class: "check" }, adjPrev, "Also set the previous entry's end time to this") : null);
   openDialog({ title: "Adjust start time", help: "adjstart", body, buttons: [
     { label: "Cancel" },
     { label: "Set", primary: true, onClick: async () => {
-      const data = await api("POST", "/api/adjust-start", { start: input.value, adjust_prev: adjPrev.checked });
+      const v = input.value.trim();
+      if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(v)) { toast("Enter the time as H:MM or H:MM:SS", true); return true; }
+      if (hasPrev && adjPrev.checked && toSecs(v) < toSecs(prevStart)) {
+        toast(`${v} is before the previous entry started (${prevStart}). Edit that entry first, or untick the box.`, true);
+        return true;
+      }
+      if (v === s.start) return;
+      const data = await api("POST", "/api/adjust-start", { start: v, adjust_prev: hasPrev && adjPrev.checked });
       state.dirty = false;
       renderToday(data);
+      toast(`Start time set to ${v}`);
     } }] });
 }
 
@@ -1109,7 +1134,7 @@ async function loadHelpIndex(lang) {
 /** A small "?" button for a help topic, or null if there is no such topic. */
 function helpQ(id) {
   if (help.index && !help.ids.has(id)) return null;
-  return el("button", { type: "button", class: "help-q", "data-help": id, "aria-label": "Help", text: "?" });
+  return el("span", { class: "help-q", role: "button", tabindex: "0", "data-help": id, "aria-label": "Help", text: "?" });
 }
 /** Turn plain help text into nodes, making http(s) URLs clickable. */
 function helpTextNodes(text) {
@@ -1208,6 +1233,10 @@ function setupHelp() {
     ev.preventDefault();
     ev.stopPropagation();
     showHelp(b.dataset.help);
+  });
+  document.addEventListener("keydown", ev => {
+    const b = ev.target.closest && ev.target.closest(".help-q[data-help]");
+    if (b && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); ev.stopPropagation(); showHelp(b.dataset.help); }
   });
   $("#hd-close").addEventListener("click", () => $("#help-dlg").close());
   $("#hd-ok").addEventListener("click", () => $("#help-dlg").close());

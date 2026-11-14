@@ -178,6 +178,23 @@ class TestSession(Base):
         with self.assertRaises(ValueError):
             self.session.adjust_start("soon", False)
 
+    def test_adjust_start_checks(self):
+        self.clock.advance(minutes=30)          # 9:30
+        self.session.next("")                   # entry 9:00-9:30, new start 9:30
+        self.clock.advance(minutes=10)          # 9:40
+        with self.assertRaises(ValueError) as e:
+            self.session.adjust_start("9:50:00", False)
+        self.assertIn("future", str(e.exception))
+        with self.assertRaises(ValueError) as e:
+            self.session.adjust_start("8:55:00", True)   # before previous entry's start
+        self.assertIn("before the previous entry", str(e.exception))
+        self.assertEqual(tf.entry_val(self.log()[-1], "EndTime"), "9:30:00")  # unchanged
+        self.session.adjust_start("8:55:00", False)       # allowed without touching it
+        self.assertEqual(self.session.state["start"], "8:55:00")
+        self.session.pause()
+        with self.assertRaises(ValueError):
+            self.session.adjust_start("9:00:00", False)
+
 
 class TestActionsProjects(Base):
     def test_project_and_action_ids(self):

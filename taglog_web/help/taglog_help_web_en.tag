@@ -191,6 +191,12 @@ change the end time of the previous entry to match the new start time. This
 is the default. If you do not adjust the end time of the previous entry then
 you will double account for the time by which you adjusted the start.
 
+The start cannot be moved back past the start of the previous entry (that
+would make the two entries overlap). If the previous entry is very short -
+for example because you pressed Next twice - the dialog tells you so and
+offers to edit that entry; delete or shorten it, then adjust again.
+A start time in the future is not accepted.
+
 You can also type a new time directly into the Start field.
 END_D
 End:

@@ -247,7 +247,19 @@ class Session:
         if not re.fullmatch(r"\d{1,2}:\d{2}(:\d{2})?", new_start):
             raise ValueError("Start time must look like H:MM or H:MM:SS")
         with self.lock:
+            if not self.state.get("running"):
+                raise ValueError("Taglog is paused; press Resume first")
+            now = self.clock()
+            if self.date == now.date() and parse_hms(new_start) > parse_hms(self._fmt(now)):
+                raise ValueError(f"{new_start} is in the future")
             if adjust_prev_end:
+                log = self.store.read_log(self.date)
+                if len(log) > 1:
+                    prev_start = tf.entry_val(log[-1], "StartTime")
+                    if prev_start and parse_hms(new_start) < parse_hms(prev_start):
+                        raise ValueError(
+                            f"{new_start} is before the previous entry started ({prev_start}). "
+                            "Edit or delete the previous entry first, or don't change its end time.")
                 self.store.set_last_entry_end(self.date, new_start)
             self.state["start"] = new_start
             self.save()
